@@ -1,0 +1,13 @@
+---
+id: DEC-003
+entity: decision
+title: Engine runs on Python 3.8+ with PyYAML as the only dependency
+status: accepted
+date: 2026-07-12
+addresses: [REQ-004]
+tags: [runtime, portability]
+---
+
+Portability requirement: Windows, macOS, Linux, and agent sandboxes. Python is the most universally available runtime in agent environments; the engine is a single file using only the standard library plus PyYAML, with `pathlib` throughout so paths work on every platform.
+
+Node.js was a viable alternative; bash + POSIX tools was rejected as too fragile for YAML parsing.

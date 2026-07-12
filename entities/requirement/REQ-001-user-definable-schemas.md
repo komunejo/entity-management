@@ -1,0 +1,11 @@
+---
+id: REQ-001
+entity: requirement
+title: Schemas must be fully definable per project
+status: open
+priority: must
+date: 2026-07-12
+tags: [core]
+---
+
+The skill brings the *mechanism* for declaring entities, never the entities themselves — like a database engine that has no opinion about your tables. No domain is predictable: entities may be decisions, requirements, contacts, experiments, components, or anything else a project needs.

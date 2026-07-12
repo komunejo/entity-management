@@ -1,0 +1,11 @@
+---
+id: REQ-004
+entity: requirement
+title: Hard integrity must not depend on model discipline
+status: open
+priority: must
+date: 2026-07-12
+tags: [core, integrity]
+---
+
+YAML + Markdown is an error-prone representation. If integrity relies on the agent "being careful", it will fail the same way human memory fails. Integrity must be enforced by a deterministic checker that the agent *runs*, not a property the agent *asserts* — and the checker must be fired automatically (hooks) or by explicit workflow step, never left to good intentions.

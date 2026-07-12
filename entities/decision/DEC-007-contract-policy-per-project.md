@@ -1,0 +1,15 @@
+---
+id: DEC-007
+entity: decision
+title: Per-project contract policy, asked explicitly at first-schema creation
+status: accepted
+date: 2026-07-12
+addresses: [REQ-004, REQ-006]
+tags: [integrity, governance, workflow]
+---
+
+When a record violates the schema and no available truth can fix it (a required field nobody knows the value of), what happens next is a *project-level* decision, not the agent's: some projects critically need the contract respected — validation stays red and the unmanageable records are surfaced for human intervention — while for others it is enough to note in a report that the contract was adjusted.
+
+Therefore the skill asks the user explicitly when the first schema is created, and records the answer as `policy.on_unresolvable` in `entity-manager.yaml`: `block` (default when unset — honest red) or `relax-and-report` (negotiated green, always documented in `schemas/CHANGELOG.md` and reported). Under either policy, fabricating values is forbidden and silent schema changes are forbidden ([[REQ-006]]).
+
+Origin: iteration-1 evaluation of this skill. Faced with Terraform's missing required `owner`, the with-skill agent relaxed the schema (explicit, but uninstructed) while the baseline left an honest red — both defensible, which is exactly why the choice belongs to the project owner.

@@ -1,0 +1,11 @@
+---
+id: REQ-002
+entity: requirement
+title: Documents must remain human-readable and human-editable
+status: open
+priority: must
+date: 2026-07-12
+tags: [core, interface]
+---
+
+The records are not an opaque database: they are Markdown files a human can open, read, and edit with any text editor. Structure lives in YAML frontmatter; meaning lives in prose. Neither audience — human or agent — is second-class.

@@ -1,0 +1,10 @@
+# entity-manager project configuration (all keys optional; these are the defaults)
+schemas_dir: schemas
+entities_dir: entities
+policy:
+  # Contract policy, chosen by the project owner at first-schema creation:
+  # block            = the contract is untouchable; unresolvable records are
+  #                    surfaced as an honest red requiring human intervention.
+  # relax-and-report = the agent may loosen the contract, always documented
+  #                    in schemas/CHANGELOG.md and reported prominently.
+  on_unresolvable: block

@@ -1,0 +1,15 @@
+---
+id: DEC-009
+entity: decision
+title: Aggregate constraints are declarative schema data, implemented once in the engine
+status: accepted
+date: 2026-07-12
+addresses: [REQ-001, REQ-004, REQ-005]
+tags: [architecture, integrity, engine]
+---
+
+Rules that live between records — "a piece can only be submitted once", "at most 3 submissions per student" — cannot be expressed by per-record field specs. Engine 0.2.0 adds a deliberately small `constraints` vocabulary to the schema language: `unique` (combination of fields unique among the entity's records) and `max_count_per` (group by a field or a dot-path through refs, bounded count). Absent values and unresolved paths are skipped, so voluntary participation is modelable and absence never violates a constraint.
+
+This preserves [[DEC-002]]: the engine evolves by versioned maintenance (documented in the skill changelog), never by per-project regeneration. The alternative — bespoke per-project validators, which the baseline agents wrote in both evaluation iterations — covers arbitrary rules at the cost of unaudited, regenerated infrastructure. Rules the vocabulary cannot express stay documented in the schema description and are handled as soft integrity ([[DEC-006]]).
+
+Origin: the ceramics-workshop evaluation (iteration 2), where the "at most 3 pieces per student" rule was enforceable by the baseline's ad hoc validator but only documentable by the skill.
