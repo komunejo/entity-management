@@ -38,6 +38,9 @@ id:
   prefix: DEC               # unique across ALL schemas in the project
   width: 3                  # MINIMUM digits, zero-padded: DEC-001 (default 3); more digits are accepted as the registry grows past 999
 dir: decision               # subdirectory under entities/ (default: entity name; must be unique across schemas)
+# path: registry/decision   # optional: project-root-relative home for this type's records,
+                            # overriding entities/<dir>. No '..'; locations must be unique
+                            # across schemas and must not nest inside one another.
 strict: true                # unknown frontmatter fields are errors (default true); with strict: false they are warnings, which never affect the exit code
 fields:
   title:    {type: string, required: true}
@@ -89,7 +92,7 @@ Constraint declarations are meta-validated like everything else (unknown rules, 
 
 ## Record file format
 
-`entities/<dir>/<ID>-slug.md` — the filename must start with the ID.
+`entities/<dir>/<ID>-slug.md` — or `<path>/<ID>-slug.md` when the schema declares `path`. The filename must start with the ID.
 
 ```markdown
 ---
@@ -106,6 +109,8 @@ inline links to other entities like [[REQ-002]] or [[DEC-004|that decision]].
 ```
 
 Rules enforced by the engine: frontmatter parses and is a mapping; `id` is present, unique project-wide, matches `<prefix>-<at least width digits>` and the filename; `entity` matches the schema implied by the directory; required fields present; all values type-check; refs resolve to the right type; undeclared fields are errors in `strict` schemas and warnings otherwise.
+
+**Folder notes are not records.** A Markdown file named exactly like its own directory (`entities/entities.md`, `registry/skill/skill.md`) is treated as an Obsidian folder note and skipped by record discovery — the natural home for the generated index in vault projects. The exemption is exact-name-only; any other `.md` outside a declared entity location still errors.
 
 ## Inline references in prose
 

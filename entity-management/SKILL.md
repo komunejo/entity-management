@@ -38,6 +38,8 @@ project-root/
 
 Entities are referenced by stable IDs (`DEC-001`), never by names or titles — renames are the great destroyer of coherence in Markdown. Each type has a unique ID prefix. Frontmatter refs (`supersedes: DEC-001`) are typed and validated; prose can link entities inline as `[[DEC-001]]`, also validated.
 
+A schema may relocate its records anywhere in the project with the optional `path` key (project-root-relative; see the schema language reference) — useful to separate, say, an instance's management records from the owner's working records. The default layout above needs no declaration.
+
 Read [`references/schema-language.md`](references/schema-language.md) before writing your first schema — it is the full specification (field types, aggregate constraints like `unique` and `max_count_per`, YAML pitfalls like unquoted `yes` becoming a boolean). Rules that live between records ("at most 3 per student") belong in the schema's `constraints` list, enforced by the engine — never in a per-project bespoke validator.
 
 ## The golden rule
@@ -77,7 +79,7 @@ Exit 0 means integrity holds; exit 1 comes with a precise list of violations; ex
 
 ### Generate an index, summary, or CSV export
 
-For the standard index, use the engine: `entity_lint.py index --write INDEX.md --root <root>` regenerates the full per-type table (ID, title — falling back to `name` — and file link). Always regenerate, never hand-edit: the file declares itself generated, and hand edits are lost on the next run.
+For the standard index, use the engine: `entity_lint.py index --write <path> --root <root>` regenerates the full per-type table (ID, title — falling back to `name` — and file link). The index may live at any path the project prefers — links adapt to its location; `INDEX.md` at the root is the plain default, and the Obsidian folder-note form (`entities/entities.md`) is a natural home when the project is a vault. Always regenerate, never hand-edit: the file declares itself generated, and hand edits are lost on the next run.
 
 For CSV exports or custom summaries (selected columns, filters, groupings), run `validate` first — an export of an invalid registry ships the corruption to everyone who reads it. Then produce the export with a small deterministic script that walks `entities/`, parses each record's frontmatter with PyYAML (the same parse the engine uses), and writes the output with the `csv` module. Never assemble exports by eyeballing files: a copying mistake in an export is invisible exactly where the registry was supposed to be reliable. Include the record ID in every exported row so each claim stays traceable to its file.
 

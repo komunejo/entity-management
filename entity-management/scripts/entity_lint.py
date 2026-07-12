@@ -27,6 +27,7 @@ import argparse
 import datetime
 import io
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -38,7 +39,7 @@ except ImportError:
         "entity_lint: PyYAML is required. Install with: pip install pyyaml\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.3.0"
+ENGINE_VERSION = "0.4.0"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"
@@ -54,7 +55,7 @@ TYPE_SPECIFIC_KEYS = {
     "boolean": set(), "date": set(), "datetime": set(),
     "enum": {"values"}, "ref": {"entity"}, "list": {"items"},
 }
-VALID_SCHEMA_KEYS = {"entity", "description", "id", "dir", "strict", "fields", "constraints"}
+VALID_SCHEMA_KEYS = {"entity", "description", "id", "dir", "path", "strict", "fields", "constraints"}
 VALID_CONSTRAINT_RULES = {"max_count_per", "unique"}
 VALID_ID_KEYS = {"prefix", "width"}
 INLINE_REF_RE = re.compile(r"\[\[([A-Za-z][A-Za-z0-9]*-\d+)(?:\|[^\]\n]*)?\]\]")
@@ -101,7 +102,7 @@ class Project:
         self.entities_dir = self.root / self.config.get("entities_dir", DEFAULT_ENTITIES_DIR)
         self.schemas = {}           # entity name -> schema dict
         self.prefix_to_entity = {}  # "DEC" -> "decision"
-        self.dir_to_entity = {}     # "decision" (subdir) -> "decision"
+        self.dir_to_entity = {}     # resolved records location (posix) -> entity name
         self.records = {}           # id -> {"entity":, "file":, "fields":, "body":}
 
     def _read_text(self, path):
@@ -203,10 +204,29 @@ class Project:
         if not isinstance(dir_val, str) or not dir_val:
             self.error(path, f"'dir' must be a non-empty string, got {dir_val!r}")
             return
-        if dir_val in self.dir_to_entity:
-            self.error(path, f"dir '{dir_val}' already used by entity "
-                             f"'{self.dir_to_entity[dir_val]}' — entity directories must be unique")
-            return
+        path_val = data.get("path")
+        if path_val is not None:
+            if not isinstance(path_val, str) or not path_val:
+                self.error(path, f"'path' must be a non-empty string, got {path_val!r}")
+                return
+            rel = Path(path_val)
+            if rel.is_absolute() or ".." in rel.parts:
+                self.error(path, f"'path' must be relative to the project root, "
+                                 f"without '..': {path_val!r}")
+                return
+            type_dir = self.root / rel
+        else:
+            type_dir = self.entities_dir / dir_val
+        loc_key = type_dir.resolve().as_posix()
+        for other_key, other_name in self.dir_to_entity.items():
+            if other_key == loc_key:
+                self.error(path, f"records location '{type_dir}' already used by entity "
+                                 f"'{other_name}' — entity locations must be unique")
+                return
+            if other_key.startswith(loc_key + "/") or loc_key.startswith(other_key + "/"):
+                self.error(path, f"records location '{type_dir}' is nested with entity "
+                                 f"'{other_name}''s location — entity locations must not nest")
+                return
 
         fields = data.get("fields")
         if not isinstance(fields, dict) or not fields:
@@ -229,9 +249,10 @@ class Project:
         data["_id_re"] = re.compile(ID_RE_TEMPLATE.format(prefix=re.escape(prefix), width=width))
         data.setdefault("strict", True)
         data["dir"] = dir_val
+        data["_type_dir"] = type_dir
         self.schemas[name] = data
         self.prefix_to_entity[prefix] = name
-        self.dir_to_entity[dir_val] = name
+        self.dir_to_entity[loc_key] = name
 
     def _check_field_spec(self, path, fname, spec, ctx=None):
         label = ctx or fname
@@ -378,19 +399,40 @@ class Project:
     # ---------------- entity loading ----------------
 
     def load_records(self):
-        if not self.entities_dir.is_dir():
-            self.error(self.entities_dir, "entities directory not found")
-            return
-        known_dirs = {schema["dir"]: name for name, schema in self.schemas.items()}
-        for path in sorted(self.entities_dir.rglob("*.md")):
-            rel = path.relative_to(self.entities_dir)
-            if rel.parts and rel.parts[0] in known_dirs:
-                expected_entity = known_dirs[rel.parts[0]]
-            else:
-                self.error(path, "file is not inside any declared entity directory "
-                                 f"(known: {', '.join(sorted(known_dirs)) or 'none'})")
+        # A file named like its own directory (entities/entities.md,
+        # registry/skill/skill.md) is an Obsidian folder note — typically the
+        # generated index — never a record.
+        def is_folder_note(p):
+            return p.stem == p.parent.name
+
+        scanned = set()
+        for name in sorted(self.schemas):
+            type_dir = self.schemas[name]["_type_dir"]
+            if not type_dir.is_dir():
                 continue
-            self._load_record(path, expected_entity)
+            for path in sorted(type_dir.rglob("*.md")):
+                if is_folder_note(path):
+                    continue
+                scanned.add(path.resolve())
+                self._load_record(path, name)
+
+        # Stray detection: anything under entities_dir that no schema claimed.
+        uses_default_location = any(s.get("path") is None for s in self.schemas.values())
+        if not self.entities_dir.is_dir():
+            if uses_default_location or not self.schemas:
+                self.error(self.entities_dir, "entities directory not found")
+            return
+        def rel_to_root(p):
+            try:
+                return p.relative_to(self.root).as_posix()
+            except ValueError:
+                return p.as_posix()
+        known = sorted(rel_to_root(s["_type_dir"]) for s in self.schemas.values())
+        for path in sorted(self.entities_dir.rglob("*.md")):
+            if path.resolve() in scanned or is_folder_note(path):
+                continue
+            self.error(path, "file is not inside any declared entity directory "
+                             f"(known: {', '.join(known) or 'none'})")
 
     def _load_record(self, path, expected_entity):
         text = self._read_text(path)
@@ -707,6 +749,10 @@ def cmd_validate(args):
 
 def cmd_index(args):
     project = load_project(args.root)
+    # Links are computed relative to where the index itself will live
+    # (stdout falls back to the project root), so --write works at any path.
+    target = Path(args.write) if args.write else None
+    link_base = target.resolve().parent if target else Path(project.root).resolve()
     out = io.StringIO()
     out.write("# Entity index\n\n_Generated by entity_lint.py — do not edit by hand._\n")
     for name in sorted(project.schemas):
@@ -719,11 +765,14 @@ def cmd_index(args):
         for rid, r in recs:
             title = str(r["fields"].get("title", "") or r["fields"].get("name", ""))
             title = " ".join(title.split()).replace("|", "\\|")
-            rel = r["file"].relative_to(project.root).as_posix()
-            out.write(f"| {rid} | {title} | [{rel}]({rel}) |\n")
+            try:
+                rel = r["file"].relative_to(project.root).as_posix()
+            except ValueError:
+                rel = r["file"].as_posix()
+            link = os.path.relpath(str(r["file"].resolve()), str(link_base)).replace(os.sep, "/")
+            out.write(f"| {rid} | {title} | [{rel}]({link}) |\n")
     content = out.getvalue()
-    if args.write:
-        target = Path(args.write)
+    if target is not None:
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
@@ -759,9 +808,13 @@ def cmd_new(args):
     lines += ["---", "", "(prose body — free-form Markdown; link entities inline as [[ID]])", ""]
     stub = "\n".join(lines)
     slug = re.sub(r"[^a-z0-9]+", "-", (args.title or "new").lower()).strip("-")[:40]
-    suggested = project.entities_dir / schema["dir"] / f"{rid}-{slug}.md"
+    suggested = schema["_type_dir"] / f"{rid}-{slug}.md"
     print(stub)
-    sys.stderr.write(f"suggested path: {suggested.relative_to(project.root).as_posix()}\n")
+    try:
+        shown = suggested.relative_to(project.root).as_posix()
+    except ValueError:
+        shown = suggested.as_posix()
+    sys.stderr.write(f"suggested path: {shown}\n")
     return 0
 
 

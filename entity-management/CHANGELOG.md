@@ -2,6 +2,13 @@
 
 The engine and skill evolve by versioned maintenance, never by per-project regeneration (DEC-002). Every engine or skill change gets an entry here, mirroring the discipline that schemas/CHANGELOG.md imposes on schemas (REQ-006).
 
+## 0.4.0 — 2026-07-12
+
+- Engine: `index --write` computes every link relative to the index file's own location (stdout falls back to the project root), so the index works at any path the project prefers (DEC-012).
+- Engine: folder notes are never records — a Markdown file named exactly like its own directory (`entities/entities.md`, `registry/skill/skill.md`) is skipped by record discovery, letting the generated index live as the registry's folder note in vault projects; the exemption is exact-name-only and stray detection is otherwise unchanged (DEC-012).
+- Engine: optional per-schema `path` (project-root-relative, no `..`, unique, non-nesting) places a type's records anywhere in the project, overriding `<entities_dir>/<dir>`; record discovery scans declared locations, `new` suggests the declared home, and the default layout needs no declaration (DEC-013).
+- Docs: `path`, the folder-note exemption, and free index placement documented in the schema language reference and SKILL.md.
+
 ## 0.3.0 — 2026-07-12
 
 - SKILL.md description compacted to the packager's 1024-char limit; trigger performance re-measured intact (26/26 on the bilingual eval set).

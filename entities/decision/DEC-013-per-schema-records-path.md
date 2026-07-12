@@ -1,0 +1,12 @@
+---
+id: DEC-013
+entity: decision
+title: A schema may place its records anywhere in the project via 'path'
+status: accepted
+date: 2026-07-12
+addresses: [REQ-001, REQ-002]
+---
+
+An optional per-schema `path` (relative to the project root, no `..`, unique among schemas, locations must not nest) overrides the default `<entities_dir>/<dir>` home for that type’s records. Without `path`, nothing changes.
+
+Motivation: how records are grouped on disk is a per-project layout preference — e.g. separating an instance’s management records (`registry/skill`) from the owner’s working records (`work/participant`). Record discovery scans each declared location; stray detection still guards `entities_dir`; refs, inline `[[ID]]` links, `new`, and `index` are unaffected because everything resolves by ID, not by location.
