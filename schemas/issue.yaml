@@ -1,0 +1,30 @@
+entity: issue
+description: >-
+  A defect or problem reported against the entity-management skill, registered whatever channel it arrived by (use, conversation, a report by mail, the GitHub tracker). Issues are what the project is told about itself; the design work they provoke lands as decisions, and the improvements they suggest as proposals.
+id:
+  prefix: ISSUE
+  width: 3
+strict: true
+fields:
+  title:
+    type: string
+    required: true
+  status:
+    type: enum
+    values: [open, resolved, rejected]
+    required: true
+  date:
+    type: date
+    required: true
+  channel:
+    type: string
+    required: true
+    description: How this issue reached the project. Deliberately not an enum — the channels are not a closed set, which is the whole reason the register exists.
+  resolved_by:
+    type: ref
+    entity: decision
+    description: The decision that resolved this issue.
+  tags:
+    type: list
+    items:
+      type: string
