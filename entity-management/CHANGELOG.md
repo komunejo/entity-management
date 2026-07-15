@@ -2,6 +2,10 @@
 
 The engine and skill evolve by versioned maintenance, never by per-project regeneration (DEC-002). Every engine or skill change gets an entry here, mirroring the discipline that schemas/CHANGELOG.md imposes on schemas (REQ-006).
 
+## 0.4.1 — 2026-07-15
+
+- Engine fix (DEC-014): `index --write` no longer forces the interpreter's platform line ending on the file it writes. It now preserves the line endings of an existing index and defaults to LF for a new one; the endings are detected from the raw bytes, since universal-newline translation on read would hide them. On Windows the previous behaviour rewrote every line of an LF index as CRLF, so each regeneration produced a whole-file diff and silently converted the file. `index --write` is the engine's only file write; `new` prints to stdout and is unaffected. Validation, schema handling and the CLI surface are untouched.
+
 ## 0.4.0 — 2026-07-12
 
 - Engine: `index --write` computes every link relative to the index file's own location (stdout falls back to the project root), so the index works at any path the project prefers (DEC-012).

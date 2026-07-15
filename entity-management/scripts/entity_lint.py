@@ -39,7 +39,7 @@ except ImportError:
         "entity_lint: PyYAML is required. Install with: pip install pyyaml\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.4.0"
+ENGINE_VERSION = "0.4.1"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"
