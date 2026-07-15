@@ -681,6 +681,21 @@ def _hashable(value):
     return value
 
 
+def detect_newline(path):
+    """Return the line ending an existing file uses ("\\n" or "\\r\\n"), or None if it has none or cannot be read. Reads bytes rather than text: Python's universal-newline translation would erase the very thing being measured. Mixed endings resolve to LF — the majority convention in the projects this engine serves, and the only ending that keeps a rewrite from churning the whole file."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return None
+    crlf = data.count(b"\r\n")
+    lf = data.count(b"\n") - crlf
+    if crlf and not lf:
+        return "\r\n"
+    if lf:
+        return "\n"
+    return None
+
+
 def split_frontmatter(text):
     """Return (frontmatter_str, body_str) or (None, text) if absent."""
     if not text.startswith(FRONTMATTER_DELIM):
@@ -773,9 +788,15 @@ def cmd_index(args):
             out.write(f"| {rid} | {title} | [{rel}]({link}) |\n")
     content = out.getvalue()
     if target is not None:
+        # Rewrite an existing index with the line endings it already has; new
+        # indexes get LF (DEC-014). Without this, the interpreter's platform
+        # default (CRLF on Windows) rewrites every line of an LF file, turning
+        # each regeneration into a whole-file diff.
+        newline = detect_newline(target) or "\n"
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
+            with open(target, "w", encoding="utf-8", newline=newline) as fh:
+                fh.write(content)
         except OSError as e:
             sys.stderr.write(f"entity_lint: cannot write index to {target}: {e}\n")
             return 2
