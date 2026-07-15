@@ -39,7 +39,7 @@ except ImportError:
         "entity_lint: PyYAML is required. Install with: pip install pyyaml\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.4.1"
+ENGINE_VERSION = "0.5.0"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"
@@ -55,10 +55,22 @@ TYPE_SPECIFIC_KEYS = {
     "boolean": set(), "date": set(), "datetime": set(),
     "enum": {"values"}, "ref": {"entity"}, "list": {"items"},
 }
-VALID_SCHEMA_KEYS = {"entity", "description", "id", "dir", "path", "strict", "fields", "constraints"}
+VALID_SCHEMA_KEYS = {"entity", "description", "id", "dir", "path", "filename",
+                     "strict", "fields", "constraints"}
 VALID_CONSTRAINT_RULES = {"max_count_per", "unique"}
 VALID_ID_KEYS = {"prefix", "width"}
+# How a project names its record files (DEC-018). The pattern belongs to the
+# project, not the engine: 'prefixed' (the default) is <ID>.md or <ID>-<handle>.md;
+# 'free' leaves the name alone entirely, the ID living only in the frontmatter.
+VALID_FILENAME_MODES = {"prefixed", "free"}
+DEFAULT_FILENAME_MODE = "prefixed"
 INLINE_REF_RE = re.compile(r"\[\[([A-Za-z][A-Za-z0-9]*-\d+)(?:\|[^\]\n]*)?\]\]")
+# The Markdown-link reference form: [label](path)^[ID](path). The ^[ID](path)
+# annotation is what marks the construct as an entity reference — a plain
+# Markdown link has none, and is none of this engine's business.
+PROSE_REF_RE = re.compile(
+    r"\[[^\[\]\n]*\]\((?P<dest>[^()\n]*)\)"
+    r"\^\[(?P<id>[A-Za-z][A-Za-z0-9]*-\d+)\]\((?P<annot_dest>[^()\n]*)\)")
 ID_RE_TEMPLATE = r"^{prefix}-\d{{{width},}}$"
 FRONTMATTER_DELIM = "---"
 
@@ -217,6 +229,17 @@ class Project:
             type_dir = self.root / rel
         else:
             type_dir = self.entities_dir / dir_val
+        # An unreadable 'filename' declaration is closest to no declaration, so it
+        # falls back to the documented default rather than dropping the schema —
+        # enforcing a pattern the project never declared would report violations of
+        # a rule nobody wrote. The isinstance guard comes first: an unhashable value
+        # (a list, a mapping) would raise on the set lookup.
+        filename_mode = data.get("filename", DEFAULT_FILENAME_MODE)
+        if not isinstance(filename_mode, str) or filename_mode not in VALID_FILENAME_MODES:
+            self.error(path, f"'filename' must be one of "
+                             f"{', '.join(sorted(VALID_FILENAME_MODES))}, got {filename_mode!r} "
+                             f"— falling back to default '{DEFAULT_FILENAME_MODE}'")
+            filename_mode = DEFAULT_FILENAME_MODE
         loc_key = type_dir.resolve().as_posix()
         for other_key, other_name in self.dir_to_entity.items():
             if other_key == loc_key:
@@ -246,6 +269,7 @@ class Project:
 
         data["_path"] = path
         data["_width"] = width
+        data["_filename"] = filename_mode
         data["_id_re"] = re.compile(ID_RE_TEMPLATE.format(prefix=re.escape(prefix), width=width))
         data.setdefault("strict", True)
         data["dir"] = dir_val
@@ -459,9 +483,14 @@ class Project:
             self.error(path, f"duplicate id '{rid}' (also in "
                              f"{self._rel(self.records[rid]['file'])})", "id")
             return
-        if not path.name.startswith(rid):
-            self.error(path, f"filename should start with the id '{rid}' "
-                             f"(e.g. {rid}-short-slug.md)", "id")
+        # Under 'prefixed' the name is the ID, or the ID and a handle behind a '-'.
+        # The boundary is the point: a bare startswith('PROP-001') also swallows
+        # PROP-0011.md, which is a different record's name. Under 'free' the project
+        # names its files and the engine has no opinion (DEC-018).
+        if self.schemas[expected_entity]["_filename"] == "prefixed":
+            if not (path.stem == rid or path.stem.startswith(rid + "-")):
+                self.error(path, f"filename should be the id '{rid}', optionally followed "
+                                 f"by '-' and a handle (e.g. {rid}.md, {rid}-a-handle.md)", "id")
         self.records[rid] = {"entity": expected_entity, "file": path,
                              "fields": fields, "body": body}
 
@@ -594,7 +623,8 @@ class Project:
                          f"{type(value).__name__} {value!r}{hint}", fname)
 
     def _check_inline_refs(self, path, body):
-        """Validate [[ID]] wiki-style references in prose, skipping fenced code."""
+        """Validate references in prose — both the [[ID]] wiki-style form and the
+        [label](path)^[ID](path) Markdown-link form — skipping fenced code."""
         in_fence = False
         for line in body.splitlines():
             if line.lstrip().startswith("```"):
@@ -604,13 +634,59 @@ class Project:
                 continue
             for m in INLINE_REF_RE.finditer(line):
                 ref = m.group(1)
-                prefix = ref.split("-", 1)[0]
-                if prefix not in self.prefix_to_entity:
-                    self.error(path, f"inline reference [[{ref}]] uses unknown prefix "
-                                     f"'{prefix}'")
-                elif ref not in self.records:
-                    self.error(path, f"inline reference [[{ref}]] does not resolve "
-                                     f"to any entity")
+                self._check_ref_id(path, ref, f"[[{ref}]]")
+            for m in PROSE_REF_RE.finditer(line):
+                self._check_prose_ref(path, m)
+
+    def _check_ref_id(self, path, ref, display):
+        """The ID half of an inline reference, shared by both prose forms: the prefix
+        must belong to a declared entity type and the ID must exist. Returns the target
+        record, or None (having reported) when it does not resolve."""
+        prefix = ref.split("-", 1)[0]
+        if prefix not in self.prefix_to_entity:
+            self.error(path, f"inline reference {display} uses unknown prefix "
+                             f"'{prefix}'")
+            return None
+        target = self.records.get(ref)
+        if target is None:
+            self.error(path, f"inline reference {display} does not resolve "
+                             f"to any entity")
+            return None
+        return target
+
+    def _check_prose_ref(self, path, m):
+        """Validate one [label](path)^[ID](path) reference. The ID must resolve, and both
+        destinations must point at that same record's file. The label is deliberately not
+        checked — whether it must equal the target's title is not yet settled."""
+        ref, display = m.group("id"), f"^[{m.group('id')}]"
+        dest, annot_dest = m.group("dest"), m.group("annot_dest")
+        if dest != annot_dest:
+            self.error(path, f"inline reference {display} has two different destinations "
+                             f"({dest!r} and {annot_dest!r}) — both links must point at "
+                             f"the file of '{ref}'")
+        target = self._check_ref_id(path, ref, display)
+        if target is None:
+            return  # no target record: nothing to check the destinations against
+        expected = target["file"].resolve()
+        for d in dict.fromkeys((dest, annot_dest)):
+            self._check_prose_ref_dest(path, ref, display, d, expected)
+
+    def _check_prose_ref_dest(self, path, ref, display, dest, expected):
+        """One destination of a prose reference, resolved against the referring record's
+        own directory."""
+        if dest.startswith("<") and dest.endswith(">"):
+            dest = dest[1:-1]   # a destination with spaces is angle-bracketed (DEC-017)
+        try:
+            resolved = (path.parent / dest).resolve()
+        except (OSError, ValueError):
+            resolved = None
+        if resolved is None or not resolved.is_file():
+            self.error(path, f"inline reference {display} links to '{dest}', which does not "
+                             f"exist relative to this record's own directory")
+        elif resolved != expected:
+            want = os.path.relpath(str(expected), str(path.parent.resolve())).replace(os.sep, "/")
+            self.error(path, f"inline reference {display} links to '{dest}', which is not the "
+                             f"file of '{ref}' — expected '{want}'")
 
     def validate_constraints(self):
         """Aggregate (cross-record) constraints; always evaluated project-wide."""
@@ -679,6 +755,15 @@ def _hashable(value):
     if isinstance(value, (list, dict)):
         return json.dumps(value, sort_keys=True, default=str)
     return value
+
+
+def md_link_dest(dest):
+    """Render a path as a Markdown inline link destination, angle-bracketing it when
+    it needs it. A bare destination may not contain spaces or parentheses: the link
+    silently degrades to literal text, which is exactly the failure a generated view
+    must not ship. Angle brackets render correctly and leave the raw path readable,
+    where percent-encoding would fix the link and cost the legibility (DEC-017)."""
+    return f"<{dest}>" if re.search(r"[\s()]", dest) else dest
 
 
 def detect_newline(path):
@@ -785,7 +870,7 @@ def cmd_index(args):
             except ValueError:
                 rel = r["file"].as_posix()
             link = os.path.relpath(str(r["file"].resolve()), str(link_base)).replace(os.sep, "/")
-            out.write(f"| {rid} | {title} | [{rel}]({link}) |\n")
+            out.write(f"| {rid} | {title} | [{rel}]({md_link_dest(link)}) |\n")
     content = out.getvalue()
     if target is not None:
         # Rewrite an existing index with the line endings it already has; new
@@ -826,10 +911,14 @@ def cmd_new(args):
         }.get(spec.get("type"), "")
         marker = "" if spec.get("required") else "  # optional"
         lines.append(f"{fname}:{placeholder or marker}")
-    lines += ["---", "", "(prose body — free-form Markdown; link entities inline as [[ID]])", ""]
+    lines += ["---", "",
+              "(prose body — free-form Markdown; reference entities inline as "
+              "[label](path/to/ID.md)^[ID](path/to/ID.md))", ""]
     stub = "\n".join(lines)
-    slug = re.sub(r"[^a-z0-9]+", "-", (args.title or "new").lower()).strip("-")[:40]
-    suggested = schema["_type_dir"] / f"{rid}-{slug}.md"
+    # The filename is the ID and nothing else. A handle may follow it — the rule
+    # is only that the name starts with the ID — but it is chosen, never derived
+    # from the title, so the engine has none to suggest (DEC-018).
+    suggested = schema["_type_dir"] / f"{rid}.md"
     print(stub)
     try:
         shown = suggested.relative_to(project.root).as_posix()

@@ -21,9 +21,11 @@ fields:
     required: true
     description: How this issue reached the project. Deliberately not an enum — the channels are not a closed set, which is the whole reason the register exists.
   resolved_by:
-    type: ref
-    entity: decision
-    description: The decision that resolved this issue.
+    type: list
+    items:
+      type: ref
+      entity: decision
+    description: The decision or decisions that resolved this issue. More than one is ordinary — a problem reported once is often answered in several places.
   tags:
     type: list
     items:

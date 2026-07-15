@@ -2,6 +2,15 @@
 
 The engine and skill evolve by versioned maintenance, never by per-project regeneration (DEC-002). Every engine or skill change gets an entry here, mirroring the discipline that schemas/CHANGELOG.md imposes on schemas (REQ-006).
 
+## 0.5.0 — 2026-07-15
+
+- Engine: prose references in the form `[label](path)^[ID](path)` are validated — the ID resolves, the two destinations agree, and they point at that ID's file relative to the record making the reference. The label is never read; it is free, and a stale one is soft integrity (DEC-017). A Markdown link without the `^[ID](path)` annotation is an ordinary link and is untouched. `[[ID]]` remains valid and is still checked for its ID.
+- Engine: optional per-schema `filename` — `prefixed` (the default, `<ID>.md` or `<ID>-<handle>.md`) or `free` (unconstrained; the id lives in the frontmatter alone). A project whose records are named in prose declares `free` and keeps its names (DEC-018).
+- Engine fix: the `prefixed` check tested `startswith`, so `PROP-0011.md` passed as a name for `PROP-001`. It now requires the ID exactly, or the ID followed by `-`.
+- Engine fix: `index --write` wraps destinations containing whitespace or parentheses in angle brackets. Unescaped, they rendered as plain text — a generated index of dead links, which `free` filenames would have hit immediately.
+- Engine: `new` suggests `<ID>.md` and no longer slugifies the title into a filename. A handle is chosen, never derived (DEC-018).
+- Docs: the Markdown reference form documented as the default in SKILL.md and the schema language reference; the filename described as an ID plus an optional handle; the rename workflow no longer offers to leave a slug stale.
+
 ## 0.4.1 — 2026-07-15
 
 - Engine fix (DEC-014): `index --write` no longer forces the interpreter's platform line ending on the file it writes. It now preserves the line endings of an existing index and defaults to LF for a new one; the endings are detected from the raw bytes, since universal-newline translation on read would hide them. On Windows the previous behaviour rewrote every line of an LF index as CRLF, so each regeneration produced a whole-file diff and silently converted the file. `index --write` is the engine's only file write; `new` prints to stdout and is unaffected. Validation, schema handling and the CLI surface are untouched.

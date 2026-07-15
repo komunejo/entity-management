@@ -14,7 +14,7 @@ Three layers with different life cycles — keep them separate:
 
 1. **Engine** (`scripts/entity_lint.py`) — generic, domain-agnostic, stable. It reads schema declarations and validates records. Never rewrite it per project and never regenerate it when schemas change: a bug in the validator is worse than a bug in the data, because it corrupts trust in the whole system.
 2. **Schemas** (`schemas/*.yaml`) — data, not code. One YAML declaration per entity type. Redesigning the model means editing declarations.
-3. **Records** (`entities/<type>/<ID>-slug.md`) — one Markdown file per entity. YAML frontmatter is the typed record; the body is free prose.
+3. **Records** (`entities/<type>/<ID>.md`) — one Markdown file per entity. YAML frontmatter is the typed record; the body is free prose. The filename need only start with the ID; a handle may follow it, but it is chosen and never derived from the title.
 
 Two kinds of integrity — be honest about the difference:
 
@@ -36,7 +36,7 @@ project-root/
         └── REQ-001-user-definable-schemas.md
 ```
 
-Entities are referenced by stable IDs (`DEC-001`), never by names or titles — renames are the great destroyer of coherence in Markdown. Each type has a unique ID prefix. Frontmatter refs (`supersedes: DEC-001`) are typed and validated; prose can link entities inline as `[[DEC-001]]`, also validated.
+Entities are *resolved* by stable IDs (`DEC-001`), never by names or titles — renames are the great destroyer of coherence in Markdown. Each type has a unique ID prefix. Frontmatter refs (`supersedes: DEC-001`) are typed and validated. Prose references an entity with an ordinary Markdown link plus the ID behind it — `[label](path/to/DEC-001.md)^[DEC-001](path/to/DEC-001.md)` — and both the ID and the destinations are validated; the label is free, because what resolves is the ID and not the words around it. Wiki-style `[[DEC-001]]` is still accepted for projects whose readers understand it, but it is not the default: it is not Markdown, so it renders as literal brackets wherever the project is published.
 
 A schema may relocate its records anywhere in the project with the optional `path` key (project-root-relative; see the schema language reference) — useful to separate, say, an instance's management records from the owner's working records. The default layout above needs no declaration.
 
@@ -65,7 +65,7 @@ Exit 0 means integrity holds; exit 1 comes with a precise list of violations; ex
 ### Create a record
 
 1. Never invent IDs by hand — allocate with: `python3 .../entity_lint.py new <type> --title "..." --root <root>`. It prints a stub with the next free ID (stub on stdout, suggested file path on stderr).
-2. Fill in the frontmatter from what the user said, in their words. Put everything schema-shaped in the frontmatter; put everything else in the prose body. Link related entities inline as `[[ID]]`.
+2. Fill in the frontmatter from what the user said, in their words. Put everything schema-shaped in the frontmatter; put everything else in the prose body. Reference related entities inline as `[label](path/to/ID.md)^[ID](path/to/ID.md)`, with the path relative to the record you are writing.
 3. Run `validate`.
 
 ### Bulk-create records from CSV / spreadsheet rows
@@ -73,7 +73,7 @@ Exit 0 means integrity holds; exit 1 comes with a precise list of violations; ex
 1. Agree the column-to-field mapping with the user before writing anything: which column is the title, which map to enums (and how the spreadsheet's spellings map to the declared `values`), which columns are refs to other entities, and which stay out of the schema entirely. A wrong mapping multiplied by N rows is N migrations — settle it while it is still one decision.
 2. Import referenced types first: if rows point at entities that do not exist yet (a `student` column naming people with no person records), create those records before the rows that reference them, or the refs cannot validate.
 3. Allocate the ID block deterministically: run `new <type>` once to learn the next free ID, then number the rows sequentially from it inside the import script. Do not call `new` once per row without writing the previous file first — it computes the next ID from records on disk, so repeated calls against an unchanged project return the same ID every time.
-4. Write the files with a throwaway script, never by hand: parse the source (Python `csv` module), emit one `entities/<dir>/<ID>-slug.md` per row with frontmatter from the mapped columns, and put leftover meaningful cells in the prose body. Quote values YAML would mistype (`yes`, `no`, version numbers, anything with leading zeros); leave real dates unquoted.
+4. Write the files with a throwaway script, never by hand: parse the source (Python `csv` module), emit one `entities/<dir>/<ID>.md` per row with frontmatter from the mapped columns, and put leftover meaningful cells in the prose body. Quote values YAML would mistype (`yes`, `no`, version numbers, anything with leading zeros); leave real dates unquoted.
 5. Run `validate`. The error list is the per-row repair worklist: fix mappings and re-run until green, ask the user for missing facts instead of fabricating them, and never repair by silently dropping rows — a row that cannot be imported is reported, not deleted.
 6. Report how many records were created, where, and the final validator status.
 
@@ -111,7 +111,7 @@ policy:
 
 - **`block`** (the default when unset): the contract is untouchable. Leave validation red, list every record that cannot be managed without human intervention, and surface that list prominently. An honest red is the deliverable.
 
-  Under `block`, apply the mixed rule to decide what is actually unresolvable. A violation whose repair requires NO new fact — a broken ref in an OPTIONAL field, a dangling inline `[[ID]]` — is repaired by demoting the claim to prose with a note and a pending question for the user: the information survives, the structure stops asserting what the registry cannot back, and the result is green. Red is reserved for violations that require a fact nobody has (a missing REQUIRED field, a required value with no evidence). This keeps red meaningful: every red item is a real question for a human, not a typo.
+  Under `block`, apply the mixed rule to decide what is actually unresolvable. A violation whose repair requires NO new fact — a broken ref in an OPTIONAL field, a dangling inline reference — is repaired by demoting the claim to prose with a note and a pending question for the user: the information survives, the structure stops asserting what the registry cannot back, and the result is green. Red is reserved for violations that require a fact nobody has (a missing REQUIRED field, a required value with no evidence). This keeps red meaningful: every red item is a real question for a human, not a typo.
 
 - **`relax-and-report`**: the agent may loosen the contract to keep work flowing (e.g. make a field optional), but the change must be documented in `schemas/CHANGELOG.md` and reported prominently to the user, with what is pending to restore it.
 
@@ -119,7 +119,7 @@ Under either policy, two things are absolute. Never fabricate a value to turn re
 
 ### Rename / refactor
 
-To rename an entity's *title* or file slug: IDs never change, so update the title field and optionally the filename slug (keep the `<ID>-` prefix), then run `validate`. To retire an entity, prefer a status field (e.g. `superseded`) over deletion — deleting breaks inbound references, and the validator will list every one of them if you try.
+To rename an entity's *title*: IDs never change, so edit the title field and run `validate` — the filename is not a copy of the title and has nothing to follow. (If a project keeps a handle on its filenames, that handle is chosen, not derived, so a new title does not make it stale.) To retire an entity, prefer a status field (e.g. `superseded`) over deletion — deleting breaks inbound references, and the validator will list every one of them if you try.
 
 ### Soft-integrity review (on request)
 

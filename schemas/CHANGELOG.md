@@ -2,6 +2,11 @@
 
 Every schema modification — by human or agent — gets an entry here. Never in silence (REQ-006).
 
+## 2026-07-15 — issue.resolved_by becomes a list (Claude (claude-opus-4-8), with Humano)
+
+- `resolved_by` was a single `ref decision`; it is now a list of them. ISSUE-004 is the case that showed why: one report, answered by two decisions — the reference form and the filename pattern — and the field could hold only one of them, so the record would have had to pretend the other did not exist.
+- Migrated: ISSUE-001's `resolved_by: DEC-014` becomes `[DEC-014]`.
+
 ## 2026-07-15 — issue schema for what the project is told about itself (Claude (claude-opus-4-8), with Humano)
 
 - Created `issue.yaml` (prefix ISSUE): title, status enum [open, resolved, rejected], date, channel (string, required), resolved_by (ref decision), tags.

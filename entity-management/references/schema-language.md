@@ -92,7 +92,7 @@ Constraint declarations are meta-validated like everything else (unknown rules, 
 
 ## Record file format
 
-`entities/<dir>/<ID>-slug.md` — or `<path>/<ID>-slug.md` when the schema declares `path`. The filename must start with the ID.
+`entities/<dir>/<ID>.md` — or `<path>/<ID>.md` when the schema declares `path`. The rule is only that the filename starts with the ID; anything after it is an optional handle (`<ID>-any-handle.md`), chosen by whoever names the file and derived from nothing. `new` suggests the bare ID.
 
 ```markdown
 ---
@@ -105,16 +105,29 @@ addresses: [REQ-002, REQ-003]
 ---
 
 Free prose. Everything the schema cannot capture lives here, including
-inline links to other entities like [[REQ-002]] or [[DEC-004|that decision]].
+inline links to other entities:
+[the requirement](../requirement/REQ-002.md)^[REQ-002](../requirement/REQ-002.md)
 ```
 
-Rules enforced by the engine: frontmatter parses and is a mapping; `id` is present, unique project-wide, matches `<prefix>-<at least width digits>` and the filename; `entity` matches the schema implied by the directory; required fields present; all values type-check; refs resolve to the right type; undeclared fields are errors in `strict` schemas and warnings otherwise.
+Rules enforced by the engine: frontmatter parses and is a mapping; `id` is present, unique project-wide, matches `<prefix>-<at least width digits>` and the filename; `entity` matches the schema implied by the directory; required fields present; all values type-check; refs resolve to the right type; inline references in prose resolve, and their destinations point at the record their ID names; undeclared fields are errors in `strict` schemas and warnings otherwise.
 
 **Folder notes are not records.** A Markdown file named exactly like its own directory (`entities/entities.md`, `registry/skill/skill.md`) is treated as an Obsidian folder note and skipped by record discovery — the natural home for the generated index in vault projects. The exemption is exact-name-only; any other `.md` outside a declared entity location still errors.
 
 ## Inline references in prose
 
-`[[DEC-001]]` and `[[DEC-001|display text]]` in the body are validated: the prefix must belong to a declared entity type and the ID must exist. Fenced code blocks (``` … ```) are skipped, so examples never trigger false errors.
+Two forms are validated. The default is an ordinary Markdown link to the target, followed by a caret and the ID linked to the same path:
+
+```
+[some label](../requirement/REQ-004.md)^[REQ-004](../requirement/REQ-004.md)
+```
+
+The `^[ID](path)` annotation is what marks the construct as a reference — a Markdown link without it is an ordinary link and is never touched, so a project can link to a README or to the web without the engine having an opinion. What is checked: the prefix belongs to a declared entity type, the ID resolves, both destinations are identical, and they resolve — relative to the referring record's own directory — to that ID's file. The label is not checked; it is yours.
+
+The reason this is the default rather than a wiki-style link is that a wikilink is not Markdown. It renders as literal bracket characters wherever the project is published, so a reference written that way is validated and unreachable at the same time. A destination containing spaces must be wrapped in angle brackets — `[label](<a path with spaces.md>)` — or the link silently renders as plain text.
+
+`[[DEC-001]]` and `[[DEC-001|display text]]` remain valid and are checked the same way for the ID, for projects whose readers understand them. A project that prefers them uses them; nothing else changes.
+
+Fenced code blocks (``` … ```) are skipped for both forms, so examples never trigger false errors.
 
 ## YAML pitfalls the engine catches
 
@@ -127,4 +140,4 @@ These are the reasons "YAML + Markdown" needs a linter at all:
 
 ## Design guidance
 
-Model only the facts that must not drift. A field earns its place in the schema when (a) more than one document depends on it, (b) an agent might plausibly get it wrong from memory, or (c) you want to query or index by it. Everything else is prose — that is a feature, not a failure of modeling: the prose is the interface, the schema is the safety net. Prefer `enum` over free `string` wherever the vocabulary is closed; enums are where drift dies. Prefer one `ref` field per relation over encoding relations in prose alone; you can (and should) still mention the relation in prose with `[[ID]]`, which keeps human readability and gets validated too.
+Model only the facts that must not drift. A field earns its place in the schema when (a) more than one document depends on it, (b) an agent might plausibly get it wrong from memory, or (c) you want to query or index by it. Everything else is prose — that is a feature, not a failure of modeling: the prose is the interface, the schema is the safety net. Prefer `enum` over free `string` wherever the vocabulary is closed; enums are where drift dies. Prefer one `ref` field per relation over encoding relations in prose alone; you can (and should) still mention the relation in prose with an inline reference, which keeps human readability and gets validated too.
