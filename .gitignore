@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Editor/IDE
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Language caches and build artefacts (extend per stack)
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+
+# Secrets — never commit
+*.env
+.env.*
+*.pem
+*.key
+credentials.json
