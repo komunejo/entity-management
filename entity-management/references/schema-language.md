@@ -106,7 +106,7 @@ addresses: [REQ-002, REQ-003]
 
 Free prose. Everything the schema cannot capture lives here, including
 inline links to other entities:
-[the requirement](../requirement/REQ-002.md)^[REQ-002](../requirement/REQ-002.md)
+[the requirement (REQ-002)](../requirement/REQ-002.md)
 ```
 
 Rules enforced by the engine: frontmatter parses and is a mapping; `id` is present, unique project-wide, matches `<prefix>-<at least width digits>` and the filename; `entity` matches the schema implied by the directory; required fields present; all values type-check; refs resolve to the right type; inline references in prose resolve, and their destinations point at the record their ID names; undeclared fields are errors in `strict` schemas and warnings otherwise.
@@ -115,13 +115,14 @@ Rules enforced by the engine: frontmatter parses and is a mapping; `id` is prese
 
 ## Inline references in prose
 
-Two forms are validated. The default is an ordinary Markdown link to the target, followed by a caret and the ID linked to the same path:
+Two forms are validated. The default is one ordinary Markdown link whose text carries the ID — free label with the ID in parentheses, or the bare ID when there is no label:
 
 ```
-[some label](../requirement/REQ-004.md)^[REQ-004](../requirement/REQ-004.md)
+[some label (REQ-004)](../requirement/REQ-004.md)
+[REQ-004](../requirement/REQ-004.md)
 ```
 
-The `^[ID](path)` annotation is what marks the construct as a reference — a Markdown link without it is an ordinary link and is never touched, so a project can link to a README or to the web without the engine having an opinion. What is checked: the prefix belongs to a declared entity type, the ID resolves, both destinations are identical, and they resolve — relative to the referring record's own directory — to that ID's file. The label is not checked; it is yours.
+The ID-shaped link text under a declared prefix is what marks the link as a reference — a link whose text carries no such ID is an ordinary link and is never touched, so a project can link to a README or to the web without the engine having an opinion (an ID under a prefix no schema declares is likewise left alone). What is checked: the ID resolves, and the destination resolves — relative to the referring record's own directory — to that ID's file. The label is not checked; it is yours, except that a label which merely repeats its own ID (`[REQ-004 (REQ-004)](…)`) is flagged as redundant — write the bare form instead. The pre-DEC-022 caret annotation (`^[ID](path)` riding behind a link) is recognized only to be named as an error: Pandoc reads `^[…]` as an inline footnote and the construct shatters in any footnote-aware renderer (ISSUE-012).
 
 The reason this is the default rather than a wiki-style link is that a wikilink is not Markdown. It renders as literal bracket characters wherever the project is published, so a reference written that way is validated and unreachable at the same time. A destination containing spaces must be wrapped in angle brackets — `[label](<a path with spaces.md>)` — or the link silently renders as plain text.
 

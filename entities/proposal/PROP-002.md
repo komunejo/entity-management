@@ -10,7 +10,7 @@ tags: [index, schema-language]
 
 ## Motivation
 
-The generated index (`entity_lint.py index`) labels each row with `title`, falling back to `name`. A real project (a synchronized-repos registry, 2026-07-13) concluded that its entities do not carry titles at all — hosts, identities, repos and people are known by a *display name*, and the semantic difference matters to its owner — so every schema renamed the field to `display_name`. The engine-generated index now renders an empty label column for all 52 entities: the registry got semantically more truthful and visually less readable at the same time. Readability of the generated views should not depend on entities calling their name field `title` ([documents must remain human-readable and human-editable](../requirement/REQ-002.md)^[REQ-002](../requirement/REQ-002.md)).
+The generated index (`entity_lint.py index`) labels each row with `title`, falling back to `name`. A real project (a synchronized-repos registry, 2026-07-13) concluded that its entities do not carry titles at all — hosts, identities, repos and people are known by a *display name*, and the semantic difference matters to its owner — so every schema renamed the field to `display_name`. The engine-generated index now renders an empty label column for all 52 entities: the registry got semantically more truthful and visually less readable at the same time. Readability of the generated views should not depend on entities calling their name field `title` ([documents must remain human-readable and human-editable (REQ-002)](../requirement/REQ-002.md)).
 
 ## Sketch
 

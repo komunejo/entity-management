@@ -8,7 +8,7 @@ channel: use (keikoba space, constitution session)
 tags: [schema-language, scope, privacy, references]
 ---
 
-Sibling of [ISSUE-010](ISSUE-010.md)^[ISSUE-010](ISSUE-010.md): both stem from the engine assuming one shared view of all records. That issue is about *placement* (type is not folder); this one is about *scope* — which records exist on every clone, and which exist only on the machine that wrote them.
+Sibling of [ISSUE-010](ISSUE-010.md): both stem from the engine assuming one shared view of all records. That issue is about *placement* (type is not folder); this one is about *scope* — which records exist on every clone, and which exist only on the machine that wrote them.
 
 ## The case
 
@@ -24,7 +24,7 @@ A schema-level scope declaration (working name: `scope: repo | machine`, or `loc
 
 ## Scope as the source of the ignore configuration
 
-Today the scope lives twice: declared nowhere, enforced by hand-written `.gitignore` patterns. Once the schema declares it, the ignore configuration becomes *derived* — and the derivation has a precise limit worth designing around. Path patterns are non-deterministic under mixed folders: a folder can host different Markdown types distinguishable only by their YAML (the [ISSUE-010](ISSUE-010.md)^[ISSUE-010](ISSUE-010.md) mixed-content case), and no pattern language reads frontmatter. But per-file resolution *is* deterministic: the engine knows each record's declared type, hence its scope, hence exactly which files must not travel. The design space: an engine-maintained exclusion block of exact paths (regenerated like any derived view), or a travel audit that flags both mismatch directions — a machine-scoped record that is not excluded (it would leak), and a repo-scoped record sitting in an excluded tree (it would silently not exist on any other clone, with no red anywhere until a ref dangles).
+Today the scope lives twice: declared nowhere, enforced by hand-written `.gitignore` patterns. Once the schema declares it, the ignore configuration becomes *derived* — and the derivation has a precise limit worth designing around. Path patterns are non-deterministic under mixed folders: a folder can host different Markdown types distinguishable only by their YAML (the [ISSUE-010](ISSUE-010.md) mixed-content case), and no pattern language reads frontmatter. But per-file resolution *is* deterministic: the engine knows each record's declared type, hence its scope, hence exactly which files must not travel. The design space: an engine-maintained exclusion block of exact paths (regenerated like any derived view), or a travel audit that flags both mismatch directions — a machine-scoped record that is not excluded (it would leak), and a repo-scoped record sitting in an excluded tree (it would silently not exist on any other clone, with no red anywhere until a ref dangles).
 
 ## Acceptance, from the reporting space's side
 

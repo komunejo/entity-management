@@ -10,7 +10,7 @@ tags: [schema-language, refs]
 
 ## Motivation
 
-A synchronized-repos registry (2026-07-13) models `copy` — a local copy, on a concrete machine, of a synchronized artifact that is either a `repo` or a `vault`. The natural declaration is one field referencing *an artifact*; the schema language only supports refs typed to exactly one entity. The workaround is two optional fields (`repo`, `vault`) plus a prose rule "exactly one must be set" — checked by a reconciliation pass, i.e. by discipline, which is what [hard integrity must not depend on model discipline](../requirement/REQ-004.md)^[REQ-004](../requirement/REQ-004.md) says integrity must not depend on. The same shape will recur wherever a family of sibling types shares a relation (any "artifact contract" implementer, cf. [schema inheritance: abstract parent schemas enforced by the engine](PROP-001.md)^[PROP-001](PROP-001.md)).
+A synchronized-repos registry (2026-07-13) models `copy` — a local copy, on a concrete machine, of a synchronized artifact that is either a `repo` or a `vault`. The natural declaration is one field referencing *an artifact*; the schema language only supports refs typed to exactly one entity. The workaround is two optional fields (`repo`, `vault`) plus a prose rule "exactly one must be set" — checked by a reconciliation pass, i.e. by discipline, which is what [hard integrity must not depend on model discipline (REQ-004)](../requirement/REQ-004.md) says integrity must not depend on. The same shape will recur wherever a family of sibling types shares a relation (any "artifact contract" implementer, cf. [schema inheritance: abstract parent schemas enforced by the engine (PROP-001)](PROP-001.md)).
 
 ## Sketch
 
@@ -24,4 +24,4 @@ With (1) the two-field workaround collapses into one field; (2) alone would at l
 ## Open questions
 
 - Does `unique` over a multi-target ref field need per-type semantics (one copy per repo per machine) or is whole-value uniqueness enough?
-- Interaction with [schema inheritance: abstract parent schemas enforced by the engine](PROP-001.md)^[PROP-001](PROP-001.md): if abstract parents exist, `entity: artifact` (the parent) may be sugar for the list of its children.
+- Interaction with [schema inheritance: abstract parent schemas enforced by the engine (PROP-001)](PROP-001.md): if abstract parents exist, `entity: artifact` (the parent) may be sugar for the list of its children.

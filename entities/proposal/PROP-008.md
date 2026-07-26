@@ -9,7 +9,7 @@ tags: [runtime, portability, documentation]
 
 ## Motivation
 
-[The documented install path fails on an externally-managed Python](../issue/ISSUE-002.md)^[ISSUE-002](../issue/ISSUE-002.md) reported the surface: `pip install pyyaml`, the command the engine itself prints, is refused outright on a PEP-668 platform. Working the issue exposed the deeper misdirection: **the actor reading that instruction is almost never the human — it is an agent**, and the instruction assumes permissions and judgment calls that are the human's, not the agent's. The report's own history proves it: the wall was hit not by the reporting human but by his agent, which then had to improvise a venv and a wrapper.
+[The documented install path fails on an externally-managed Python (ISSUE-002)](../issue/ISSUE-002.md) reported the surface: `pip install pyyaml`, the command the engine itself prints, is refused outright on a PEP-668 platform. Working the issue exposed the deeper misdirection: **the actor reading that instruction is almost never the human — it is an agent**, and the instruction assumes permissions and judgment calls that are the human's, not the agent's. The report's own history proves it: the wall was hit not by the reporting human but by his agent, which then had to improvise a venv and a wrapper.
 
 The user casuistry the fix must serve, in order of frequency:
 
@@ -38,7 +38,7 @@ The engine is a household tool, not a platform. The fix is not to engineer the w
 
 ## Open questions
 
-Both were settled by the implementation, [DEC-021](../decision/DEC-021.md)^[DEC-021](../decision/DEC-021.md):
+Both were settled by the implementation, [DEC-021](../decision/DEC-021.md):
 
 - Where does the engine's missing-dependency message point? Only at targets that travel with the skill folder: the library's official page. No repo paths — the README and `docs/troubleshooting.md` exist in this repository, not in the consuming spaces the skill is copied into.
-- Does [DEC-003](../decision/DEC-003.md)^[DEC-003](../decision/DEC-003.md) need touching? It stands as written; DEC-021 fixes its reading — "the only dependency" means the only *stated requirement*, never a copy the engine carries or fetches.
+- Does [DEC-003](../decision/DEC-003.md) need touching? It stands as written; DEC-021 fixes its reading — "the only dependency" means the only *stated requirement*, never a copy the engine carries or fetches.

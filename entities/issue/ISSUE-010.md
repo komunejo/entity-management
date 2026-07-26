@@ -8,7 +8,7 @@ channel: use (keikoba space, constitution session)
 tags: [schema-language, locations, folder-notes]
 ---
 
-Second occurrence of the gap behind [container directories cannot carry their own typed record](ISSUE-009.md)^[ISSUE-009](ISSUE-009.md), reported from a different shape of use — one that stresses all three open questions of [folder-note records](../proposal/PROP-005.md)^[PROP-005](../proposal/PROP-005.md).
+Second occurrence of the gap behind [container directories cannot carry their own typed record (ISSUE-009)](ISSUE-009.md), reported from a different shape of use — one that stresses all three open questions of [folder-note records (PROP-005)](../proposal/PROP-005.md).
 
 ## The case
 

@@ -1,0 +1,21 @@
+---
+id: ISSUE-012
+entity: issue
+title: the reference annotation imitates a footnote mark, and footnote-aware renderers take it at its word
+status: resolved
+date: 2026-07-26
+channel: use (vitrine publishing)
+tags: [references, schema-language, publishing]
+---
+
+The prose-reference annotation `[label](path)^[ID](path)` was born of a confusion, reported by the person who proposed it: it was meant to echo Markdown footnote syntax, and it misremembers it. A real footnote reference is `[^ID]` — caret *inside* the brackets — with a `[^ID]: text` definition collecting it at the bottom of the document. The caret landed outside instead, which is nobody's footnote reference and exactly Pandoc's *inline footnote* opener (`^[text]`). So the construct sits in the worst spot: to a plain CommonMark renderer it is a literal caret gluing two links, to a footnote-aware parser it is the opening of a footnote that never closes the way it promised.
+
+Where it bit: publishing through vitrine (MarkPub, whose parser is mistletoe). The caret construct broke rendering — and the fix that exists today lives in the wrong layer: vitrine carries a pre-render transform that strips `^[ID](path)` from every page as "validator-only shadow" content. A publish-layer patch for a registry-layer syntax choice, the same shape [the generated index cannot leave a type out (ISSUE-008)](ISSUE-008.md) records: one layer doing its job, the next layer undoing it by hand.
+
+[references in prose are ordinary Markdown links by default; wikilinks are opt-in (DEC-017)](../decision/DEC-017.md) claimed the form was "measured rather than assumed, on the renderer this repository is published through," and noted "the caret stays a literal caret — there is no inline footnote syntax." True of the renderer measured that day; false of the class of renderers the records travel through. The measurement was one sample presented as a property.
+
+The confusion is confined to the sigil. Every argument DEC-017 makes for the annotation — label, path and ID all recoverable from the ID; the construct verifiable and regenerable; plain Markdown legible raw in any editor — survives unchanged if the caret is replaced by something every dialect treats as prose. The scope of a fix is small and mechanical: one sigil in the engine's pattern, the documented examples, and a one-pass migration of the 61 occurrences across 37 files of this repository (plus any project that adopted the form). Vitrine's strip-the-shadow transform can then retire.
+
+The same issue has a second face: when the label *is* the ID — `[PROP-NNN](path)`, the natural way to reference in passing — the annotation stops being optional decoration and becomes bad redundancy: the ID annotating itself, rendered twice in a row. This registry, being decision prose, mostly labels with titles; that proportion is a fact about this repository, not about the general case — a correspondence space or a capture notebook will reference by bare ID most of the time. Whatever form replaces the caret, the grammar must admit two reference forms as equals: a bare ID-labeled link, validated on its own with no annotation; and a free-labeled link carrying the ID annotation. An annotation whose ID merely repeats its own label should be flagged, not tolerated — in an ID-heavy space it would otherwise metastasize.
+
+**Resolved by [a prose reference is one link whose text carries the ID (DEC-022)](../decision/DEC-022.md), and the resolution bought more than it was asked for.** With every reference a plain CommonMark link, a record repository is now **format-agnostic at the source**: any converter that speaks CommonMark can transform it — HTML, PDF, docx, ePub, whatever Pandoc or its kin emit — with only a minimal rendering configuration (what to select, how to group, how to order; anchors come free because they derive from the IDs, not the paths). Measured the day of the fix: a real space's full published set assembled into a single PDF, docx and ePub with every cross-reference an internal jump, one Pandoc call per format. That minimal configuration is being proposed in the komunejo plugin (its registry, as ISS-002) as the standard every format connector follows, so the norm is written once and not re-invented per converter; the design draft and working prototype live in the owner's kindling note on the universal renderer.

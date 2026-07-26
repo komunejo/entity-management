@@ -50,7 +50,7 @@ except ImportError:
         "prefer — the library's official page is https://pypi.org/project/PyYAML/.\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.6.1"
+ENGINE_VERSION = "0.7.0"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"
@@ -76,12 +76,22 @@ VALID_ID_KEYS = {"prefix", "width"}
 VALID_FILENAME_MODES = {"prefixed", "free"}
 DEFAULT_FILENAME_MODE = "prefixed"
 INLINE_REF_RE = re.compile(r"\[\[([A-Za-z][A-Za-z0-9]*-\d+)(?:\|[^\]\n]*)?\]\]")
-# The Markdown-link reference form: [label](path)^[ID](path). The ^[ID](path)
-# annotation is what marks the construct as an entity reference — a plain
-# Markdown link has none, and is none of this engine's business.
-PROSE_REF_RE = re.compile(
-    r"\[[^\[\]\n]*\]\((?P<dest>[^()\n]*)\)"
-    r"\^\[(?P<id>[A-Za-z][A-Za-z0-9]*-\d+)\]\((?P<annot_dest>[^()\n]*)\)")
+# The Markdown-link reference form (DEC-022): one ordinary link whose text
+# carries the ID — [free label (ID)](path), degenerating to [ID](path) when
+# there is no label. The ID-shaped text under a declared prefix is what marks
+# the construct as an entity reference; a link whose text carries none is an
+# ordinary link and none of this engine's business.
+# A destination is either angle-bracketed (spaces and parentheses live inside —
+# the very form md_link_dest emits for free filenames) or bare without parens.
+_DEST = r"<[^<>\n]*>|[^()\n]*"
+MD_LINK_RE = re.compile(r"\[(?P<text>[^\[\]\n]+)\]\((?P<dest>" + _DEST + r")\)")
+REF_ID_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*-\d+")
+REF_LABELED_RE = re.compile(r"(?P<label>.+) \((?P<id>[A-Za-z][A-Za-z0-9]*-\d+)\)")
+# The pre-DEC-022 form, [label](path)^[ID](path), imitated a footnote mark no
+# Markdown dialect owns; Pandoc reads ^[...] as an inline footnote and the
+# construct shatters (ISSUE-012). Recognized only to be named.
+LEGACY_CARET_RE = re.compile(
+    r"\^\[(?P<id>[A-Za-z][A-Za-z0-9]*-\d+)\]\((?:" + _DEST + r")\)")
 ID_RE_TEMPLATE = r"^{prefix}-\d{{{width},}}$"
 FRONTMATTER_DELIM = "---"
 
@@ -798,7 +808,7 @@ class Project:
 
     def _check_inline_refs(self, path, body):
         """Validate references in prose — both the [[ID]] wiki-style form and the
-        [label](path)^[ID](path) Markdown-link form — skipping fenced code."""
+        [label (ID)](path) Markdown-link form — skipping fenced code."""
         in_fence = False
         for line in body.splitlines():
             if line.lstrip().startswith("```"):
@@ -809,7 +819,17 @@ class Project:
             for m in INLINE_REF_RE.finditer(line):
                 ref = m.group(1)
                 self._check_ref_id(path, ref, f"[[{ref}]]")
-            for m in PROSE_REF_RE.finditer(line):
+            # Legacy caret annotations are named, then blanked, so the [ID](path)
+            # inside one is not also validated as a reference of the current form.
+            legacy = list(LEGACY_CARET_RE.finditer(line))
+            for m in legacy:
+                self.error(path, f"inline reference ^[{m.group('id')}] uses the legacy "
+                                 f"caret annotation, which Pandoc reads as an inline "
+                                 f"footnote (ISSUE-012) — write [label ({m.group('id')})]"
+                                 f"(path), or [{m.group('id')}](path) when unlabeled")
+            for m in reversed(legacy):
+                line = line[:m.start()] + " " * (m.end() - m.start()) + line[m.end():]
+            for m in MD_LINK_RE.finditer(line):
                 self._check_prose_ref(path, m)
 
     def _check_ref_id(self, path, ref, display):
@@ -829,21 +849,28 @@ class Project:
         return target
 
     def _check_prose_ref(self, path, m):
-        """Validate one [label](path)^[ID](path) reference. The ID must resolve, and both
-        destinations must point at that same record's file. The label is deliberately not
-        checked — whether it must equal the target's title is not yet settled."""
-        ref, display = m.group("id"), f"^[{m.group('id')}]"
-        dest, annot_dest = m.group("dest"), m.group("annot_dest")
-        if dest != annot_dest:
-            self.error(path, f"inline reference {display} has two different destinations "
-                             f"({dest!r} and {annot_dest!r}) — both links must point at "
-                             f"the file of '{ref}'")
+        """Decide whether one ordinary Markdown link is an entity reference, and
+        validate it if so. The link text carries the decision: exactly an ID is the
+        bare form, ending in ' (ID)' is the labeled form — in both, only when the
+        ID's prefix belongs to a declared entity type; any other link is an ordinary
+        link and stays untouched. The label is deliberately not checked — whether it
+        must equal the target's title is not yet settled."""
+        text, dest = m.group("text"), m.group("dest")
+        bare = REF_ID_RE.fullmatch(text)
+        labeled = None if bare else REF_LABELED_RE.fullmatch(text)
+        if not bare and not labeled:
+            return
+        ref = bare.group(0) if bare else labeled.group("id")
+        if ref.split("-", 1)[0] not in self.prefix_to_entity:
+            return  # ID-shaped text under no declared prefix: an ordinary link
+        display = f"({ref})" if labeled else f"[{ref}]"
+        if labeled and labeled.group("label") == ref:
+            self.error(path, f"inline reference {display} repeats its own ID as the "
+                             f"label — redundant; write [{ref}]({dest or 'path'}) alone")
         target = self._check_ref_id(path, ref, display)
         if target is None:
-            return  # no target record: nothing to check the destinations against
-        expected = target["file"].resolve()
-        for d in dict.fromkeys((dest, annot_dest)):
-            self._check_prose_ref_dest(path, ref, display, d, expected)
+            return  # no target record: nothing to check the destination against
+        self._check_prose_ref_dest(path, ref, display, dest, target["file"].resolve())
 
     def _check_prose_ref_dest(self, path, ref, display, dest, expected):
         """One destination of a prose reference, resolved against the referring record's
@@ -1093,7 +1120,7 @@ def cmd_new(args):
         lines.append(f"{fname}:{placeholder or marker}")
     lines += ["---", "",
               "(prose body — free-form Markdown; reference entities inline as "
-              "[label](path/to/ID.md)^[ID](path/to/ID.md))", ""]
+              "[label (ID)](path/to/ID.md), or [ID](path/to/ID.md) when unlabeled)", ""]
     stub = "\n".join(lines)
     # The filename is the ID and nothing else. A handle may follow it — the rule
     # is only that the name starts with the ID — but it is chosen, never derived

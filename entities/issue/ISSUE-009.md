@@ -19,4 +19,4 @@ Where it bit: comroom's library reorganized its `source` records into physical s
 
 The shape of the gap: containment is an ordinary relation between entity types (a shelf contains sources; a room contains transcripts), and the schema language cannot express it. The exemption in rule 1 excludes exactly the file that would represent the container.
 
-Candidate fix sketched in [folder-note records](../proposal/PROP-005.md)^[PROP-005](../proposal/PROP-005.md).
+Candidate fix sketched in [folder-note records (PROP-005)](../proposal/PROP-005.md).

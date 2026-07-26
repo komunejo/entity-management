@@ -36,7 +36,7 @@ project-root/
         └── REQ-001-user-definable-schemas.md
 ```
 
-Entities are *resolved* by stable IDs (`DEC-001`), never by names or titles — renames are the great destroyer of coherence in Markdown. Each type has a unique ID prefix. Frontmatter refs (`supersedes: DEC-001`) are typed and validated. Prose references an entity with an ordinary Markdown link plus the ID behind it — `[label](path/to/DEC-001.md)^[DEC-001](path/to/DEC-001.md)` — and both the ID and the destinations are validated; the label is free, because what resolves is the ID and not the words around it. Wiki-style `[[DEC-001]]` is still accepted for projects whose readers understand it, but it is not the default: it is not Markdown, so it renders as literal brackets wherever the project is published.
+Entities are *resolved* by stable IDs (`DEC-001`), never by names or titles — renames are the great destroyer of coherence in Markdown. Each type has a unique ID prefix. Frontmatter refs (`supersedes: DEC-001`) are typed and validated. Prose references an entity with one ordinary Markdown link whose text carries the ID — `[label (DEC-001)](path/to/DEC-001.md)`, or just `[DEC-001](path/to/DEC-001.md)` when unlabeled — and both the ID and the destination are validated; the label is free, because what resolves is the ID and not the words around it. Wiki-style `[[DEC-001]]` is still accepted for projects whose readers understand it, but it is not the default: it is not Markdown, so it renders as literal brackets wherever the project is published.
 
 A schema may relocate its records anywhere in the project with the optional `path` key (project-root-relative; see the schema language reference) — useful to separate, say, an instance's management records from the owner's working records. The default layout above needs no declaration.
 
@@ -80,7 +80,7 @@ When the validator flags something, resolve it yourself first: the likeliest cau
 ### Create a record
 
 1. Never invent IDs by hand — allocate with: `python3 .../entity_lint.py new <type> --title "..." --root <root>`. It prints a stub with the next free ID (stub on stdout, suggested file path on stderr).
-2. Fill in the frontmatter from what the user said, in their words. Put everything schema-shaped in the frontmatter; put everything else in the prose body. **When a value holds prose, quote it**: a comma in a flow collection, a ` #`, an unquoted `yes` are all read as structure or type, not text — the engine's pre-parse scan will flag the ambiguous ones, but write it right the first time. Reference related entities inline as `[label](path/to/ID.md)^[ID](path/to/ID.md)`, with the path relative to the record you are writing.
+2. Fill in the frontmatter from what the user said, in their words. Put everything schema-shaped in the frontmatter; put everything else in the prose body. **When a value holds prose, quote it**: a comma in a flow collection, a ` #`, an unquoted `yes` are all read as structure or type, not text — the engine's pre-parse scan will flag the ambiguous ones, but write it right the first time. Reference related entities inline as `[label (ID)](path/to/ID.md)` — bare `[ID](path/to/ID.md)` when unlabeled — with the path relative to the record you are writing.
 3. Run `validate`.
 
 ### Bulk-create records from CSV / spreadsheet rows

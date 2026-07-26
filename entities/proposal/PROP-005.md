@@ -10,7 +10,7 @@ tags: [schema-language, locations, folder-notes]
 
 ## Motivation
 
-[Container directories cannot carry their own typed record](../issue/ISSUE-009.md)^[ISSUE-009](../issue/ISSUE-009.md): the folder-note exemption keeps the container's natural record out of the contract, and the location-uniqueness rule keeps a container type out of its members' tree. A domain whose entities *are* containers (shelves holding sources, rooms holding transcripts) is therefore not fully definable, which is what [schemas must be fully definable per project](../requirement/REQ-001.md)^[REQ-001](../requirement/REQ-001.md) promises. The engine already accepts that a record's filename is a naming concern, not an identity concern (0.5.0 separated ID, filename, and title); this proposal extends the same move to *placement*: being a directory's folder note is a placement, and placement should not decide whether a record is validated.
+[Container directories cannot carry their own typed record (ISSUE-009)](../issue/ISSUE-009.md): the folder-note exemption keeps the container's natural record out of the contract, and the location-uniqueness rule keeps a container type out of its members' tree. A domain whose entities *are* containers (shelves holding sources, rooms holding transcripts) is therefore not fully definable, which is what [schemas must be fully definable per project (REQ-001)](../requirement/REQ-001.md) promises. The engine already accepts that a record's filename is a naming concern, not an identity concern (0.5.0 separated ID, filename, and title); this proposal extends the same move to *placement*: being a directory's folder note is a placement, and placement should not decide whether a record is validated.
 
 ## Sketch
 

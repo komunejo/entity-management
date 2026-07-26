@@ -152,17 +152,21 @@ A frontmatter field points at an ID that does not exist. Either the ID is mistyp
 
 The ID exists but is the wrong kind of thing — the field is declared to reference a `z`. Either the ID is wrong, or the field's declaration is.
 
-### `inline reference ^[X] does not resolve to any entity` / `uses unknown prefix 'P'`
+### `inline reference (X) does not resolve to any entity`
 
-Same as above, but for references written in prose as `[label](path/to/X.md)^[X](path/to/X.md)`. An unknown prefix usually means a typo in the ID's letters, or a reference to a type this project does not track.
+Same as above, but for references written in prose as `[label (X)](path/to/X.md)` or bare `[X](path/to/X.md)`. Note that an ID whose prefix no schema declares is treated as an ordinary link and never checked — so a typo in the *letters* of a prefix goes silent, where a typo in the digits goes red.
 
-### `inline reference ^[X] has two different destinations ('a' and 'b') — both links must point at the file of 'X'`
-
-The visible link and the `^[…]` annotation disagree about where the record lives. Usually one of them survived a file move that the other didn't. Point both at the target's actual file.
-
-### `inline reference ^[X] links to 'p', which does not exist relative to this record's own directory` / `… which is not the file of 'X' — expected 'q'`
+### `inline reference (X) links to 'p', which does not exist relative to this record's own directory` / `… which is not the file of 'X' — expected 'q'`
 
 Prose links resolve relative to the file that contains them — a link copied from a record in another directory keeps the wrong relative path. The second form of the message does the arithmetic for you: `expected 'q'` is the correct path, ready to paste.
+
+### `inline reference (X) repeats its own ID as the label — redundant`
+
+`[X (X)](path)` says the same thing twice; the bare form `[X](path)` is what it collapses to. Delete the label half.
+
+### `inline reference ^[X] uses the legacy caret annotation`
+
+The pre-0.7 reference form (`[label](path)^[X](path)`) imitated a footnote mark: Pandoc reads `^[…]` as an inline footnote and the construct shatters in any footnote-aware renderer (ISSUE-012 in the project's own registry). Rewrite as `[label (X)](path)`, or `[X](path)` when the label is the ID itself.
 
 ### A reference you only *mention*
 

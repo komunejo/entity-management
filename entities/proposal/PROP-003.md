@@ -10,7 +10,7 @@ tags: [refs, generated-views]
 
 ## Motivation
 
-Composite entities want their record to show what points at them. In a synchronized-repos registry (2026-07-13), a `project` record should include the table of artifacts whose `projects` field references it — automatically updated — alongside the hand-written prose that explains the project. Today the only options are a hand-maintained table (which drifts, exactly what [hard integrity must not depend on model discipline](../requirement/REQ-004.md)^[REQ-004](../requirement/REQ-004.md) says must not depend on discipline) or asking readers to run a query themselves. The engine already knows every inbound reference at validation time; it just has no way to materialize that knowledge inside a record.
+Composite entities want their record to show what points at them. In a synchronized-repos registry (2026-07-13), a `project` record should include the table of artifacts whose `projects` field references it — automatically updated — alongside the hand-written prose that explains the project. Today the only options are a hand-maintained table (which drifts, exactly what [hard integrity must not depend on model discipline (REQ-004)](../requirement/REQ-004.md) says must not depend on discipline) or asking readers to run a query themselves. The engine already knows every inbound reference at validation time; it just has no way to materialize that knowledge inside a record.
 
 ## Sketch
 

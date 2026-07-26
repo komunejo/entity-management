@@ -2,6 +2,14 @@
 
 The engine and skill evolve by versioned maintenance, never by per-project regeneration (DEC-002). Every engine or skill change gets an entry here, mirroring the discipline that schemas/CHANGELOG.md imposes on schemas (REQ-006).
 
+## 0.7.0 — 2026-07-26
+
+- Engine, breaking: the prose reference form is now one Markdown link whose text carries the ID — `[label (ID)](path)`, bare `[ID](path)` when unlabeled. The 0.5.0 caret construct (`[label](path)^[ID](path)`) imitated a footnote mark no dialect owns; Pandoc reads `^[…]` as an inline footnote and the construct shatters in any footnote-aware renderer (ISSUE-012, DEC-022 correcting DEC-017). The legacy caret is recognized outside fenced code only to be named as an error, so it cannot creep back. An ID-shaped link text under a prefix no schema declares stays an ordinary link; a label that merely repeats its own ID is flagged as redundant (the bare form is what it collapses to).
+- Engine: `new` stubs hint the corrected reference form.
+- Engine fix: the reference pattern now reads angle-bracketed destinations containing parentheses — `[label (ID)](<a name (draft).md>)` — the very form `index --write` emits for free filenames. Before, such a link matched nothing and was silently not validated: a false green in every `filename: free` project whose names carry parentheses, latent since 0.5.0. Measured in a scratch project with prose filenames (spaces, commas, parentheses), varied labels (accents, internal parentheses, cross-type), and Pandoc HTML/docx transformation of the results.
+- Docs: the reference form updated in SKILL.md, the schema language reference, and `docs/troubleshooting.md`, which gains entries for the redundant-label and legacy-caret errors and loses the two-destinations one (the corrected form has a single destination).
+- Registry: all records migrated in one pass — 34 files, with the 7 label-equals-ID references collapsed to the bare form; fenced historical specimens left as written.
+
 ## 0.6.1 — 2026-07-26
 
 - Engine: the missing-PyYAML message no longer prescribes `pip install pyyaml` — the command half the current platforms reject, aimed at an actor (the agent) that neither has nor should have the permissions it assumes. It now addresses both possible readers in plain words: the agent (obtain the library as ordinary environment work — per-user, only if missing, never elevated) and the human (your assistant can arrange it; official page as the only pointer). The Python floor (≥ 3.8) is checked before any import and fails as a sentence, not a stack trace (ISSUE-002, PROP-008, DEC-021).
