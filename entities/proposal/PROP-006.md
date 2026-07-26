@@ -2,7 +2,7 @@
 id: PROP-006
 entity: proposal
 title: "raw-text scan: pre-parse checks for what the parse destroys"
-status: proposed
+status: implemented
 date: 2026-07-26
 addresses: [REQ-002, REQ-004]
 tags: [engine, schema-language, integrity]

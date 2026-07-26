@@ -2,9 +2,10 @@
 id: ISSUE-003
 entity: issue
 title: the unquoted comma is one of a class — silent misparses the parse itself hides
-status: open
+status: resolved
 date: 2026-07-15
 channel: report
+resolved_by: [DEC-020]
 tags: [engine, schema-language, integrity]
 ---
 
