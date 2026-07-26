@@ -24,7 +24,7 @@ Add to the project's `.claude/settings.json` (create the file if absent). This r
 }
 ```
 
-Adjust the script path to wherever the skill/engine actually lives (skill installs are usually outside the project — use an absolute path then). On failure the agent receives the machine-readable violation list on the feedback channel; fix the violations before continuing, and never work around the hook.
+Adjust the script path to wherever the skill/engine actually lives (skill installs are usually outside the project — use an absolute path then). Adjust the interpreter too: every hook must invoke the same Python the engine is normally run with (SKILL.md, Runtime) — a bare `python3` finds the system interpreter, and if PyYAML lives in a project virtual environment, the hook's runs die at exit 2. On failure the agent receives the machine-readable violation list on the feedback channel; fix the violations before continuing, and never work around the hook.
 
 The `--json` payload the hook (or any script) can parse: `{"engine_version", "ok", "errors", "warnings", "entities", "schemas", "issues": [{"level", "file", "message", "field"?}]}`. Engine exit codes: 0 = integrity holds, 1 = violations found, 2 = the run itself was invalid (no project root, missing PyYAML, a path filter matching nothing) — never read 2 as "no violations".
 
@@ -70,7 +70,8 @@ The layer that stands between a hand edit and the history: the two hooks above f
 ```bash
 #!/bin/sh
 # .git/hooks/pre-commit  (chmod +x)
-# Adjust the engine path if the skill is installed outside the repository.
+# Adjust the engine path if the skill is installed outside the repository,
+# and the interpreter if PyYAML lives in a virtual environment (SKILL.md, Runtime).
 python3 entity-management/scripts/entity_lint.py validate --root . || {
   echo "entity_lint: commit blocked — fix integrity errors first." >&2
   exit 1

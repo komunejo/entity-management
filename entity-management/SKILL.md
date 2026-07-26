@@ -42,6 +42,17 @@ A schema may relocate its records anywhere in the project with the optional `pat
 
 Read [`references/schema-language.md`](references/schema-language.md) before writing your first schema — it is the full specification (field types, aggregate constraints like `unique` and `max_count_per`, YAML pitfalls like unquoted `yes` becoming a boolean). Rules that live between records ("at most 3 per student") belong in the schema's `constraints` list, enforced by the engine — never in a per-project bespoke validator.
 
+## Runtime
+
+The engine needs a Python ≥ 3.8 that can `import yaml` (PyYAML). Getting there is your ordinary environment work, not the user's problem — handle it before the first `validate`, under two absolutes: **per-user scope** (never machine-wide, never elevated) and **only if missing** (never duplicate or upgrade something already present).
+
+1. **Verify the interpreter is real before invoking it** — ask it for its version. On Windows, a factory `python` on the PATH may be the Microsoft Store decoy: it answers to `where`, but has no version. On macOS, check `xcode-select -p` first — if the Command Line Tools are absent, invoking `python3` pops a GUI install dialog that hangs a non-interactive run.
+2. **If PyYAML is missing**, set it up the way this machine already does such things — the user's standing conventions win; a virtual environment of your own is always a safe default. Never modify a system or distro-managed interpreter.
+3. **If you run inside a sandboxed or platform-provided agent environment** (Claude Cowork's isolated environment, for instance), satisfy the runtime entirely inside it: it is your own environment, per-user by construction, and the human is never involved. What the environment provides is the platform's own documentation to state, not this skill's — for Cowork, the Claude Help Center (support.claude.com). An environment that resets between sessions costs nothing — only-if-missing simply installs again.
+4. **If there is no usable Python at all and you operate directly on the host** (typically only Windows), that one step is genuinely the human's. Ask for exactly one thing, in plain words — install Python from python.org or the Store, "just for me" — and wait. No jargon, no error dumps: to an almost-ignorant user, a scary message is a defect.
+
+Invoke the engine with the interpreter that satisfies the above — the same one every time, including in hooks: a hook that calls a bare `python3` while PyYAML lives in your virtual environment fails at exit 2.
+
 ## The golden rule
 
 After ANY change to `schemas/` or `entities/` — yours or the user's — run:
@@ -49,6 +60,8 @@ After ANY change to `schemas/` or `entities/` — yours or the user's — run:
 ```bash
 python3 <skill-path>/scripts/entity_lint.py validate --root <project-root>
 ```
+
+(`python3` here and in every command below stands for the interpreter the Runtime section settled on — if PyYAML lives in a virtual environment, that environment's interpreter, everywhere, always.)
 
 Exit 0 means integrity holds; exit 1 comes with a precise list of violations; exit 2 means the run itself was invalid (no project root, missing PyYAML, a path filter that matched nothing) — never read exit 2 as "no violations". You can restrict record checks to specific files with `validate <paths...>` (aggregate constraints still run project-wide). Fix every error and re-run until green. Use `--json` when you need to act on the output programmatically. Do not report a task as done while the validator fails. If hooks are installed (see [`references/hooks.md`](references/hooks.md)), the validator also fires automatically after every file edit and at session start — treat its failures as blocking.
 
@@ -134,7 +147,7 @@ When asked to check consistency beyond structure ("does the prose contradict the
 
 ## Bundled resources
 
-- [`scripts/entity_lint.py`](scripts/entity_lint.py) — the engine. Run it; do not modify it per project. Requires Python 3.8+ and PyYAML (`pip install pyyaml`).
+- [`scripts/entity_lint.py`](scripts/entity_lint.py) — the engine. Run it; do not modify it per project. Requires Python 3.8+ and PyYAML (see Runtime above).
 - [`references/schema-language.md`](references/schema-language.md) — full schema + record format specification. Read when authoring or evolving schemas.
 - [`references/hooks.md`](references/hooks.md) — automatic validation: the four firing points (post-edit hook, session-start hook, conversational triggers, git pre-commit). Read when setting up a project or when the user asks for automatic checks.
 - [`references/troubleshooting.md`](references/troubleshooting.md) — flag triage: who owns each error family, when to ask the human (once, about intent, never mechanics), and recording the criteria their answers establish. The human-facing companion, explaining every message with examples, is `docs/troubleshooting.md` in the skill's repository.

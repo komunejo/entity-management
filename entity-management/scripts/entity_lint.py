@@ -32,14 +32,25 @@ import re
 import sys
 from pathlib import Path
 
+if sys.version_info < (3, 8):
+    sys.stderr.write(
+        "entity_lint: this tool needs Python 3.8 or newer; the Python running it is %d.%d.\n"
+        "python.org explains how to install a current one on any system.\n"
+        % sys.version_info[:2])
+    sys.exit(2)
+
 try:
     import yaml
 except ImportError:
     sys.stderr.write(
-        "entity_lint: PyYAML is required. Install with: pip install pyyaml\n")
+        "entity_lint: this tool needs the PyYAML library, and the Python running it cannot find it.\n"
+        "If you are an agent: setting it up is your ordinary environment work — per-user, only if\n"
+        "missing, never with elevated permissions; a virtual environment of your own always works.\n"
+        "If you are a human: your assistant can arrange this for you, or install it any way you\n"
+        "prefer — the library's official page is https://pypi.org/project/PyYAML/.\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.6.0"
+ENGINE_VERSION = "0.6.1"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"

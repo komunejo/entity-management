@@ -16,6 +16,14 @@ A useful mirror for step 3: an agent question that the human can only answer by 
 
 When the human's answer settles a *rule* rather than an instance — "titles in this project are always literal text, quote them all", "that `#` convention is ours, keep it", "unknown fields in `capture` records are emergent types, not typos" — the answer has become a project criterion, and the same question must never be asked twice. Record it where this project keeps its conventions: its own `CLAUDE.md` or agent-instructions file if it has one, or a decision record if the project tracks decisions as entities. An unwritten criterion is a question in waiting; writing it is what turns this protocol from politeness into memory. (The scope test from the global discipline applies: the criterion belongs to the *project* and travels with its files — not to your session memory, which the next agent never sees.)
 
+## Before flags exist: the runtime family (exit 2)
+
+Exit 2 means the engine could not even look — no project root, a path filter matching nothing, or the runtime itself missing. The runtime cases are **yours, silently, with exactly one exception**:
+
+- **PyYAML missing**: your ordinary housekeeping, per SKILL.md's Runtime section — obtain it per-user, only if missing, never elevated; a virtual environment of your own always works. The human never hears of it. Never relay the engine's message as if it were a question for them.
+- **Exit 2 from a hook that works by hand**: the hook is invoking the wrong interpreter (a bare `python3` while PyYAML lives in your environment) — fix the hook command ([`hooks.md`](hooks.md)), not the environment.
+- **No usable Python at all** (typically Windows): the one exception, because installing it is genuinely the human's step. One ask, in plain words — install Python from python.org or the Store, "just for me" — and wait. No jargon, no error dumps: to an almost-ignorant user, a scary message is a defect, and that includes the messages you compose.
+
 ## Triage by family
 
 What follows sorts the engine's message catalog by who usually owns the fix. "Usually" is a prior, not a verdict — step 2 (criterion) overrides it in both directions.

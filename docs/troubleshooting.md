@@ -14,6 +14,20 @@ Three doors, and it matters which one you came through:
 
 - **Exit codes**, if you are scripting: `0` means integrity holds; `1` means violations were found and listed; `2` means the run itself was invalid — no project root, missing PyYAML, a path filter that matched nothing. Never read exit 2 as "no violations": it means the engine could not even look.
 
+## Before the engine can look: Python and PyYAML
+
+Two ordinary things must exist before the engine can say anything at all: a Python (3.8 or newer) and the PyYAML library. When either is missing, the engine stops at exit 2 with a short note. That is not an integrity verdict — the engine could not even look — and both stories have calm endings:
+
+### `this tool needs Python 3.8 or newer; the Python running it is …`
+
+The Python that ran the engine is too old — or there is no usable one and something older answered. Windows machines ship none (the factory `python` command is a decoy that opens the Microsoft Store); Macs get one with the Command Line Tools, which installing `git` already brings; Linux has one out of the box. If you work with an assistant, it detects all of this and, at most, asks you once to install Python — the official installer at [python.org](https://www.python.org/downloads/), "install just for me," no administrator needed. If you manage your own machine, install it however you prefer: the engine does not care which Python it gets, only that it is 3.8 or newer.
+
+### `this tool needs the PyYAML library, and the Python running it cannot find it`
+
+The library the engine reads YAML with is not visible to the Python that ran it. An assistant treats this as its own housekeeping and fixes it without bothering you — in its own per-user environment, only if actually missing. On your own, install it any way you like: your distro's package, a virtual environment, `pip` where your platform allows it; the official page is [pypi.org/project/PyYAML](https://pypi.org/project/PyYAML/). On many current systems the system Python refuses direct installs by design — a protection, not a fault — and a virtual environment is the standard answer; your OS vendor's documentation is the authority on its particulars. A variant worth knowing: if validation works when you run it by hand but a hook fails with this message, the hook is calling a different Python than you are — the hook's command needs the same interpreter, path and all.
+
+Neither story ever requires touching the system Python, elevated permissions, or anything machine-wide.
+
 ## Quoting errors: the silent-misparse family
 
 These four fire *before* the YAML parse, on the raw text you typed. They deserve their own section because they are the least intuitive family in the catalog: **the file looks perfectly fine to a human eye.** The problem is that YAML would have read it differently from how you wrote it — cleanly, without any error, into data that is not what you meant. These checks exist because nothing downstream can catch that: once the parse has happened, the evidence of what you actually typed is gone. (The project's own registry records the four measured cases as ISSUE-003, and the design as PROP-006.)

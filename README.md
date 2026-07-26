@@ -14,7 +14,7 @@ If you prefer a manual install, copy the [`entity-management/`](entity-managemen
 
 Then, inside any project, just ask in plain language — "I want to track X as consistent records", "check the structural consistency of the documents" — and the skill will propose schemas, ask for your contract policy, and keep the records validated from then on. The full schema language is specified in [`entity-management/references/schema-language.md`](entity-management/references/schema-language.md).
 
-The engine requires Python 3.8+ and PyYAML.
+The engine requires Python 3.8+ and [PyYAML](https://pypi.org/project/PyYAML/). An assistant installing the skill takes care of both on its own — and on Claude Desktop not even that concerns you: Claude's work runs in an isolated environment of its own (see the [Claude Help Center](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork)), so your machine needs nothing installed at all. From the Claude CLI or by hand, use whatever you normally use — the engine only needs an interpreter that can `import yaml`. No Python on the machine at all? [python.org](https://www.python.org/downloads/) has the official installer for every system. And if the engine still refuses to start, [`docs/troubleshooting.md`](docs/troubleshooting.md) opens with exactly these two stories, told with examples.
 
 ## Contents
 
