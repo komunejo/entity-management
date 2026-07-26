@@ -39,7 +39,7 @@ except ImportError:
         "entity_lint: PyYAML is required. Install with: pip install pyyaml\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.5.0"
+ENGINE_VERSION = "0.6.0"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"
@@ -73,6 +73,152 @@ PROSE_REF_RE = re.compile(
     r"\^\[(?P<id>[A-Za-z][A-Za-z0-9]*-\d+)\]\((?P<annot_dest>[^()\n]*)\)")
 ID_RE_TEMPLATE = r"^{prefix}-\d{{{width},}}$"
 FRONTMATTER_DELIM = "---"
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys. PyYAML's default keeps
+    the last value and silently discards the rest; PROP-006 fixes the policy:
+    a mapping that names a key twice is never admissible."""
+
+    def construct_mapping(self, node, deep=False):
+        seen = set()
+        for key_node, _value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if isinstance(key, (str, int, float, bool, type(None))):
+                if key in seen:
+                    raise yaml.YAMLError(
+                        f"duplicate key {key!r} in mapping (line "
+                        f"{key_node.start_mark.line + 1}) — the first value "
+                        "would be silently discarded")
+                seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
+def yaml_load(text):
+    """Every YAML the engine reads comes through here: strict on duplicates."""
+    return yaml.load(text, Loader=_StrictLoader)
+
+
+# ---------------- pre-parse raw-text scan (PROP-006) ----------------
+# A silent misparse destroys its own evidence: the text reads cleanly into a
+# well-formed mapping that is not what the author typed, and every later check
+# runs on the mapping. These checks run on the raw text instead. Not a parser:
+# they recognize regions (quotes, flow collections, block scalars) and
+# patterns, and they name ambiguity rather than predict failure — the remedy
+# they ask for (quotes) is always harmless. Rules enter this scan measured,
+# never deduced (ISSUE-003 records the measurements).
+
+_BLOCK_SCALAR_RE = re.compile(r"^[|>][+-]?[0-9]*\s*(#.*)?$")
+_COMMENT_AMBIGUITY_MSG = (
+    "unquoted value contains ' #' — from the '#' on, YAML reads a comment and "
+    "the tail silently vanishes from the value; quote the value to keep it "
+    "(or to make the comment unambiguous)")
+
+
+def _block_value(raw):
+    """Best-effort (value, start_col) for a block-context line: the part after
+    'key: ' or '- ', or the whole line for plain-scalar continuations."""
+    indent = len(raw) - len(raw.lstrip())
+    body, col = raw[indent:], indent
+    while body.startswith("- "):
+        body, col = body[2:], col + 2
+    m = re.match(r"[^\s:#][^:]*:(?:\s+|$)", body)
+    if m:
+        return body[m.end():], col + m.end()
+    return body, col
+
+
+def _scan_flow(raw, start, lineno, findings, depth=0):
+    """Char-scan one line from `start` in flow context; returns depth at EOL.
+    Flags unquoted scalars a YAML reader could split without telling anyone."""
+    i, n = start, len(raw)
+    token_start = None
+
+    def close_token(end):
+        nonlocal token_start
+        if token_start is None:
+            return
+        token, token_start = raw[token_start:end].strip(), None
+        if token and token[0] not in "\"'" and re.search(r"\s", token):
+            findings.append((lineno, (
+                f"multi-word unquoted scalar {token!r} inside a flow "
+                "collection — a ',' ':' or '#' in it is read as structure, "
+                "not text; quote it")))
+
+    while i < n:
+        c = raw[i]
+        if c == '"':
+            i += 1
+            while i < n and not (raw[i] == '"' and raw[i - 1] != "\\"):
+                i += 1
+        elif c == "'":
+            i += 1
+            while i < n and raw[i] != "'":
+                i += 1
+        elif c in "{[":
+            close_token(i)
+            depth += 1
+        elif c in "}]":
+            close_token(i)
+            depth = max(0, depth - 1)
+        elif c == ",":
+            close_token(i)
+        elif c == ":" and (i + 1 == n or raw[i + 1] in " \t"):
+            close_token(i)
+        elif c == "#" and depth > 0 and i > start and raw[i - 1] in " \t":
+            close_token(i - 1)
+            findings.append((lineno, (
+                "' #' inside a flow collection starts a comment — the rest of "
+                "the line silently vanishes; quote the scalar")))
+            return depth
+        elif depth > 0 and token_start is None and not c.isspace():
+            token_start = i
+        i += 1
+    close_token(n)
+    return depth
+
+
+def scan_raw_yaml(text, first_line=1):
+    """Scan raw YAML text for constructs the parse would absorb silently.
+    Returns [(line_number, message), ...]; first_line offsets the numbering
+    (record frontmatter starts after the opening '---')."""
+    findings = []
+    flow_depth = 0
+    block_indent = None
+    for offset, raw in enumerate(text.splitlines()):
+        lineno = first_line + offset
+        if block_indent is not None:
+            if not raw.strip() or (len(raw) - len(raw.lstrip())) > block_indent:
+                continue        # block-scalar content: literal text, not YAML
+            block_indent = None
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if flow_depth > 0:
+            flow_depth = _scan_flow(raw, 0, lineno, findings, flow_depth)
+            continue
+        value, vcol = _block_value(raw)
+        v = value.strip()
+        if not v or v.startswith("#"):
+            continue                    # empty value, or comment alone
+        if _BLOCK_SCALAR_RE.match(v):
+            block_indent = len(raw) - len(raw.lstrip())
+            continue
+        if v[0] in "\"'":
+            continue                    # quoted: unambiguous by construction
+        if v[0] in "{[":
+            flow_depth = _scan_flow(raw, vcol + value.index(v[0]), lineno, findings)
+            continue
+        if re.search(r"\s#", v):
+            findings.append((lineno, _COMMENT_AMBIGUITY_MSG))
+    return findings
+
+
+def _yaml_quote(s):
+    """Double-quote a scalar for emission. The engine quotes every scalar it
+    did not author (PROP-006): an unquoted title carrying ' #' or a comma
+    would be born misparsing."""
+    return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 class Issue:
@@ -134,8 +280,13 @@ class Project:
         except (UnicodeDecodeError, OSError) as e:
             self.issues.append(Issue("error", cfg_path, f"cannot read config as UTF-8 text: {e}"))
             return {}
+        findings = scan_raw_yaml(text)
+        if findings:
+            for ln, msg in findings:
+                self.error(cfg_path, f"line {ln}: {msg}")
+            return {}
         try:
-            data = yaml.safe_load(text) or {}
+            data = yaml_load(text) or {}
             if not isinstance(data, dict):
                 self.error(cfg_path, "config must be a YAML mapping")
                 return {}
@@ -167,8 +318,13 @@ class Project:
             text = self._read_text(path)
             if text is None:
                 continue
+            findings = scan_raw_yaml(text)
+            if findings:
+                for ln, msg in findings:
+                    self.error(path, f"line {ln}: {msg}")
+                continue
             try:
-                data = yaml.safe_load(text)
+                data = yaml_load(text)
             except yaml.YAMLError as e:
                 self.error(path, f"schema is not valid YAML: {e}")
                 continue
@@ -466,8 +622,15 @@ class Project:
         if fm is None:
             self.error(path, "missing YAML frontmatter block (--- ... ---) at top of file")
             return
+        # Pre-parse scan first: its message replaces the downstream symptom,
+        # so the author reads about the comma they typed, not the key they didn't.
+        findings = scan_raw_yaml(fm, first_line=2)
+        if findings:
+            for ln, msg in findings:
+                self.error(path, f"line {ln}: {msg}")
+            return
         try:
-            fields = yaml.safe_load(fm)
+            fields = yaml_load(fm)
         except yaml.YAMLError as e:
             self.error(path, f"frontmatter is not valid YAML: {e}")
             return
@@ -782,14 +945,18 @@ def detect_newline(path):
 
 
 def split_frontmatter(text):
-    """Return (frontmatter_str, body_str) or (None, text) if absent."""
+    """Return (frontmatter_str, body_str) or (None, text) if absent.
+
+    The closing delimiter is only legal at column zero: an indented '---' is an
+    ordinary line of a multi-line value, and cutting on it would truncate the
+    frontmatter before PyYAML ever saw it (ISSUE-003's fourth member)."""
     if not text.startswith(FRONTMATTER_DELIM):
         return None, text
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != FRONTMATTER_DELIM:
         return None, text
     for i, line in enumerate(lines[1:], start=1):
-        if line.strip() == FRONTMATTER_DELIM:
+        if line.rstrip() == FRONTMATTER_DELIM:
             return "".join(lines[1:i]), "".join(lines[i + 1:])
     return None, text
 
@@ -902,7 +1069,9 @@ def cmd_new(args):
     lines = ["---", f"id: {rid}", f"entity: {args.entity}"]
     for fname, spec in schema["fields"].items():
         if fname == "title" and args.title:
-            lines.append(f"title: {args.title}")
+            # Quoted always: the engine's emissions meet the scan's own rules
+            # (an unquoted title carrying ' #' or a comma is born misparsing).
+            lines.append(f"title: {_yaml_quote(args.title)}")
             continue
         placeholder = {
             "enum": f"  # one of: {', '.join(map(str, spec.get('values', [])))}",

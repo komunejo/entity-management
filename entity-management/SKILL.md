@@ -50,7 +50,9 @@ After ANY change to `schemas/` or `entities/` — yours or the user's — run:
 python3 <skill-path>/scripts/entity_lint.py validate --root <project-root>
 ```
 
-Exit 0 means integrity holds; exit 1 comes with a precise list of violations; exit 2 means the run itself was invalid (no project root, missing PyYAML, a path filter that matched nothing) — never read exit 2 as "no violations". You can restrict record checks to specific files with `validate <paths...>` (aggregate constraints still run project-wide). Fix every error and re-run until green. Use `--json` when you need to act on the output programmatically. Do not report a task as done while the validator fails. If hooks are installed (see [`references/hooks.md`](references/hooks.md)), the validator also fires automatically after every file edit — treat its failures as blocking.
+Exit 0 means integrity holds; exit 1 comes with a precise list of violations; exit 2 means the run itself was invalid (no project root, missing PyYAML, a path filter that matched nothing) — never read exit 2 as "no violations". You can restrict record checks to specific files with `validate <paths...>` (aggregate constraints still run project-wide). Fix every error and re-run until green. Use `--json` when you need to act on the output programmatically. Do not report a task as done while the validator fails. If hooks are installed (see [`references/hooks.md`](references/hooks.md)), the validator also fires automatically after every file edit and at session start — treat its failures as blocking.
+
+When the validator flags something, resolve it yourself first: the likeliest cause is your own slip, and the session's context often supplies the criterion (the user dictated the text, the intent was stated). Escalate to the human only when you honestly cannot decide — the flagged text is not yours and nothing in the conversation says what its author meant. One question, then; never a relay of every red. The full triage discipline — which error families are yours, which are theirs, and how to record the criteria their answers establish — is [`references/troubleshooting.md`](references/troubleshooting.md).
 
 ## Workflows
 
@@ -65,7 +67,7 @@ Exit 0 means integrity holds; exit 1 comes with a precise list of violations; ex
 ### Create a record
 
 1. Never invent IDs by hand — allocate with: `python3 .../entity_lint.py new <type> --title "..." --root <root>`. It prints a stub with the next free ID (stub on stdout, suggested file path on stderr).
-2. Fill in the frontmatter from what the user said, in their words. Put everything schema-shaped in the frontmatter; put everything else in the prose body. Reference related entities inline as `[label](path/to/ID.md)^[ID](path/to/ID.md)`, with the path relative to the record you are writing.
+2. Fill in the frontmatter from what the user said, in their words. Put everything schema-shaped in the frontmatter; put everything else in the prose body. **When a value holds prose, quote it**: a comma in a flow collection, a ` #`, an unquoted `yes` are all read as structure or type, not text — the engine's pre-parse scan will flag the ambiguous ones, but write it right the first time. Reference related entities inline as `[label](path/to/ID.md)^[ID](path/to/ID.md)`, with the path relative to the record you are writing.
 3. Run `validate`.
 
 ### Bulk-create records from CSV / spreadsheet rows
@@ -73,7 +75,7 @@ Exit 0 means integrity holds; exit 1 comes with a precise list of violations; ex
 1. Agree the column-to-field mapping with the user before writing anything: which column is the title, which map to enums (and how the spreadsheet's spellings map to the declared `values`), which columns are refs to other entities, and which stay out of the schema entirely. A wrong mapping multiplied by N rows is N migrations — settle it while it is still one decision.
 2. Import referenced types first: if rows point at entities that do not exist yet (a `student` column naming people with no person records), create those records before the rows that reference them, or the refs cannot validate.
 3. Allocate the ID block deterministically: run `new <type>` once to learn the next free ID, then number the rows sequentially from it inside the import script. Do not call `new` once per row without writing the previous file first — it computes the next ID from records on disk, so repeated calls against an unchanged project return the same ID every time.
-4. Write the files with a throwaway script, never by hand: parse the source (Python `csv` module), emit one `entities/<dir>/<ID>.md` per row with frontmatter from the mapped columns, and put leftover meaningful cells in the prose body. Quote values YAML would mistype (`yes`, `no`, version numbers, anything with leading zeros); leave real dates unquoted.
+4. Write the files with a throwaway script, never by hand: parse the source (Python `csv` module), emit one `entities/<dir>/<ID>.md` per row with frontmatter from the mapped columns, and put leftover meaningful cells in the prose body. Quote values YAML would mistype (`yes`, `no`, version numbers, anything with leading zeros) and any value holding prose — a comma, a ` #`, a colon mid-sentence are structure to YAML, and an import script multiplies the misread by N rows; leave real dates unquoted.
 5. Run `validate`. The error list is the per-row repair worklist: fix mappings and re-run until green, ask the user for missing facts instead of fabricating them, and never repair by silently dropping rows — a row that cannot be imported is reported, not deleted.
 6. Report how many records were created, where, and the final validator status.
 
@@ -134,4 +136,5 @@ When asked to check consistency beyond structure ("does the prose contradict the
 
 - [`scripts/entity_lint.py`](scripts/entity_lint.py) — the engine. Run it; do not modify it per project. Requires Python 3.8+ and PyYAML (`pip install pyyaml`).
 - [`references/schema-language.md`](references/schema-language.md) — full schema + record format specification. Read when authoring or evolving schemas.
-- [`references/hooks.md`](references/hooks.md) — automatic validation: Claude Code hooks, conversational triggers, optional git pre-commit. Read when setting up a project or when the user asks for automatic checks.
+- [`references/hooks.md`](references/hooks.md) — automatic validation: the four firing points (post-edit hook, session-start hook, conversational triggers, git pre-commit). Read when setting up a project or when the user asks for automatic checks.
+- [`references/troubleshooting.md`](references/troubleshooting.md) — flag triage: who owns each error family, when to ask the human (once, about intent, never mechanics), and recording the criteria their answers establish. The human-facing companion, explaining every message with examples, is `docs/troubleshooting.md` in the skill's repository.

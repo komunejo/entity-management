@@ -138,6 +138,13 @@ These are the reasons "YAML + Markdown" needs a linter at all:
 - `version: 1.0` is a float — declare `string` and quote it if you mean a version label.
 - Indentation errors and tab characters produce YAML parse errors, reported per file rather than crashing the run.
 
+A nastier family parses *cleanly* into something the author never typed — the misread destroys its own evidence, so the engine hunts these on the raw text, before the parse (ISSUE-003 in the skill's own registry records the measurements; PROP-006 the design). The writer-side rule that avoids all of them: **when a value holds prose, quote it.** Every message these checks can raise is explained with examples, for humans, in the repository's `docs/troubleshooting.md`; the agent's triage discipline is [`troubleshooting.md`](troubleshooting.md).
+
+- An unquoted comma inside a flow collection splits the scalar: `{description: applies always, required: true}` is **two keys** — the description truncated and `required` set, silently if the tail spells a legal key. The engine asks for quotes on any multi-word unquoted scalar inside `{...}` or `[...]`.
+- A `#` preceded by whitespace in an unquoted value starts a comment: `title: count # per item` parses to `count` — the tail vanishes with no error. Quote the value to keep it (or to make an intended comment unambiguous).
+- The same key twice in one mapping keeps the **last** value and discards the rest without a word. Never admissible; the engine rejects it with the line number.
+- A line reading `---` inside a multi-line frontmatter value would end the frontmatter early if taken as a delimiter. The engine only accepts a closing delimiter at column zero, so an indented `---` stays what it is: a line of your value.
+
 ## Design guidance
 
 Model only the facts that must not drift. A field earns its place in the schema when (a) more than one document depends on it, (b) an agent might plausibly get it wrong from memory, or (c) you want to query or index by it. Everything else is prose — that is a feature, not a failure of modeling: the prose is the interface, the schema is the safety net. Prefer `enum` over free `string` wherever the vocabulary is closed; enums are where drift dies. Prefer one `ref` field per relation over encoding relations in prose alone; you can (and should) still mention the relation in prose with an inline reference, which keeps human readability and gets validated too.
