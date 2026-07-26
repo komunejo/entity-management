@@ -2,6 +2,16 @@
 
 The engine and skill evolve by versioned maintenance, never by per-project regeneration (DEC-002). Every engine or skill change gets an entry here, mirroring the discipline that schemas/CHANGELOG.md imposes on schemas (REQ-006).
 
+## 0.6.0 — 2026-07-26
+
+- Engine: pre-parse raw-text scan over every YAML the engine reads (config, schema files, record frontmatter), run before PyYAML — catching the family of misparses that destroy their own evidence: a multi-word unquoted scalar inside a flow collection (an unnoticed comma splits it into extra keys, silently when the tail spells a legal one), and an unquoted value containing ` #` (the tail vanishes as a comment). Scan findings replace the downstream symptom, so the author reads about the comma they typed, not the phantom key they didn't (ISSUE-003, PROP-006).
+- Engine: duplicate keys in any mapping are rejected with the line number, at any depth — PyYAML's default keeps the last value and silently discards the rest (PROP-006: never admissible).
+- Engine fix: the frontmatter closing delimiter is only accepted at column zero. An indented `---` inside a multi-line value was previously taken as the close, truncating the frontmatter before the parse — fields below the cut fell silently into the document body (ISSUE-003's fourth member).
+- Engine fix: `new` emits the title double-quoted — the engine's own emissions meet the scan's rules (an unquoted title carrying ` #` or a comma was born misparsing).
+- Hooks: session-start validation added as a firing point (SessionStart hook), making flag ownership trivial — from a green start, every later flag belongs to the session's own work. Pre-commit reframed as the layer covering hand edits made with no agent at the keyboard.
+- Docs: `references/troubleshooting.md` (new) — the agent's flag-triage discipline: claim, resolve with criterion, escalate at most one intent question; criteria the human's answers establish are recorded so no question is asked twice. The human-facing companion, `docs/troubleshooting.md` in the repository, explains every engine message with examples (repo documentation, not packaged).
+- Docs: the YAML-pitfalls list gains the silent-misparse family and the writer-side rule that avoids it — when a value holds prose, quote it — in the schema language reference, SKILL.md's record-creation and bulk-import workflows, and the golden rule (which now also carries the escalation protocol in brief).
+
 ## 0.5.0 — 2026-07-15
 
 - Engine: prose references in the form `[label](path)^[ID](path)` are validated — the ID resolves, the two destinations agree, and they point at that ID's file relative to the record making the reference. The label is never read; it is free, and a stale one is soft integrity (DEC-017). A Markdown link without the `^[ID](path)` annotation is an ordinary link and is untouched. `[[ID]]` remains valid and is still checked for its ID.
