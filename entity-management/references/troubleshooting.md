@@ -1,6 +1,6 @@
 # Triage: what to do when the validator flags something
 
-This is the agent's side of error handling. The human's side — every message explained with examples, for someone reading raw engine output — lives in the repository's `docs/troubleshooting.md`; when a human needs the mechanics of an error, link or quote that page rather than paraphrasing YAML rules at them. This page is about something else: **deciding who a flag belongs to**, fixing your share silently, and asking the human exactly one well-formed question when — and only when — a flag is genuinely theirs.
+This is the agent's side of error handling. The human's side — every message explained with examples, for someone reading raw engine output — does not travel with the skill: it lives in the skill's repository, github.com/komunejo/entity-management, under `docs/`. When a human needs the mechanics of an error, send them that address or quote the passage that covers it, rather than paraphrasing YAML rules at them. This page is about something else: **deciding who a flag belongs to**, fixing your share silently, and asking the human exactly one well-formed question when — and only when — a flag is genuinely theirs.
 
 ## The protocol
 
@@ -10,7 +10,7 @@ Every flag gets the same three steps, in order (PROP-006 in the skill's own regi
 2. **Resolve it with criterion.** Even when the text is not yours, the session often holds the answer: the human dictated the sentence (so the comma is prose — quote it), the intent was stated, a criterion was recorded in an earlier session. Resolving with criterion is not guessing; if you can cite where the answer comes from, act on it.
 3. **Escalate what is honestly yours to escalate.** Only when the flagged text is not yours *and* nothing in the conversation or the project's recorded criteria decides it, ask the human. Ask about **intent, never mechanics**: "is `count # per item` all title, or is `per item` a comment?" — not "how should I quote this?". Bundle: if one validate run raised five flags you cannot resolve, that is one message with five questions ranked, never five messages. And never relay raw engine output as the question — translating the red into the decision it actually needs is your job, not theirs.
 
-A useful mirror for step 3: an agent question that the human can only answer by learning YAML was the wrong question. If they need the mechanics anyway, that is what `docs/troubleshooting.md` is for.
+A useful mirror for step 3: an agent question that the human can only answer by learning YAML was the wrong question. If they need the mechanics anyway, that is what the human guide linked above is for.
 
 ## Criteria accumulate — record them
 
@@ -30,7 +30,7 @@ What follows sorts the engine's message catalog by who usually owns the fix. "Us
 
 **Yours to fix silently, almost always:**
 
-- The quoting family (`multi-word unquoted scalar …`, `unquoted value contains ' #' …`, `duplicate key …`) — when the text is your own edit. You know what you meant; make the text say it and revalidate. When the text is a hand edit, the same flags become intent questions (see below).
+- The quoting family (`multi-word unquoted scalar …`, `unquoted value contains ' #' …`, `value looks like '#'-glued …`, `duplicate key …`) — when the text is your own edit. You know what you meant; make the text say it and revalidate. When the text is a hand edit, the same flags become intent questions (see below). The comment flags fire only where no declaration decides them — and when a flagged field's values have a shape (codes, slugs, hashtags), the durable fix is not a quote per line but declaring `pattern`: yourself, when a citable criterion settles it (documented in `schemas/CHANGELOG.md` and reported); as your one intent question, when none does. The full reasoning and routes: [`comment-decidability.md`](comment-decidability.md).
 - `filename should be the id …` on a file you created; `frontmatter entity 'x' does not match …` after a move you made; any reference error caused by your own rename or move — the `expected '…'` form of the prose-ref message contains the correct path, ready to apply.
 - Type errors whose fix is mechanical and meaning-preserving: `expected string, got bool` on a `yes` you wrote unquoted; a quoted date in a `date` field. Quote or unquote; nothing about the record's meaning is at stake.
 - `duplicate id` where the session's own history shows which record was created when — the newer copy takes the next free ID from `new <type>`.

@@ -50,7 +50,7 @@ except ImportError:
         "prefer — the library's official page is https://pypi.org/project/PyYAML/.\n")
     sys.exit(2)
 
-ENGINE_VERSION = "0.7.0"
+ENGINE_VERSION = "0.7.1"
 CONFIG_FILENAME = "entity-manager.yaml"
 DEFAULT_SCHEMAS_DIR = "schemas"
 DEFAULT_ENTITIES_DIR = "entities"
@@ -75,6 +75,21 @@ VALID_ID_KEYS = {"prefix", "width"}
 # 'free' leaves the name alone entirely, the ID living only in the frontmatter.
 VALID_FILENAME_MODES = {"prefixed", "free"}
 DEFAULT_FILENAME_MODE = "prefixed"
+VALID_POLICY_MODES = {"block", "relax-and-report"}
+# Comment decidability of the engine's own contracts (DEC-023). A key is
+# 'safe' when its value can never contain ' #' AND a downstream check reds on
+# real truncation — there, a trailing comment is provably a comment and the
+# scan stays silent. Keys not listed (paths, descriptions, patterns, user
+# enum values) hold free strings: the tail is honestly ambiguous, so the scan
+# speaks. The engine is silent exactly where something else can speak.
+# Config uses a (parent, key) entry so only policy's own key is claimed —
+# an unknown key that happens to be named 'on_unresolvable' stays ambiguous.
+CONFIG_KEY_KINDS = {("policy", "on_unresolvable"): "safe"}
+SCHEMA_KEY_KINDS = {
+    "entity": "safe", "prefix": "safe", "width": "safe", "filename": "safe",
+    "strict": "safe", "type": "safe", "required": "safe", "min": "safe",
+    "max": "safe", "rule": "safe", "group_by": "safe", "fields": "safe",
+}
 INLINE_REF_RE = re.compile(r"\[\[([A-Za-z][A-Za-z0-9]*-\d+)(?:\|[^\]\n]*)?\]\]")
 # The Markdown-link reference form (DEC-022): one ordinary link whose text
 # carries the ID — [free label (ID)](path), degenerating to [ID](path) when
@@ -120,33 +135,87 @@ def yaml_load(text):
     return yaml.load(text, Loader=_StrictLoader)
 
 
-# ---------------- pre-parse raw-text scan (PROP-006) ----------------
+# ---------------- pre-parse raw-text scan (PROP-006, DEC-023) ----------------
 # A silent misparse destroys its own evidence: the text reads cleanly into a
 # well-formed mapping that is not what the author typed, and every later check
 # runs on the mapping. These checks run on the raw text instead. Not a parser:
 # they recognize regions (quotes, flow collections, block scalars) and
-# patterns, and they name ambiguity rather than predict failure — the remedy
-# they ask for (quotes) is always harmless. Rules enter this scan measured,
-# never deduced (ISSUE-003 records the measurements).
+# patterns, and they name ambiguity rather than predict failure. Where the
+# schema or the engine's own documented contract makes a comment tail
+# decidable, the scan is silent — the typed check downstream is the honest
+# red for real truncation. Where nothing can decide, the flag speaks, and
+# there its remedy (quotes on a free string) is genuinely available
+# (DEC-023 resolving ISSUE-013; ISSUE-003 records the original measurements).
 
 _BLOCK_SCALAR_RE = re.compile(r"^[|>][+-]?[0-9]*\s*(#.*)?$")
 _COMMENT_AMBIGUITY_MSG = (
     "unquoted value contains ' #' — from the '#' on, YAML reads a comment and "
     "the tail silently vanishes from the value; quote the value to keep it "
     "(or to make the comment unambiguous)")
+_COMMENT_ONLY_VALUE_MSG = (
+    "value looks like '#'-glued content, but YAML reads a comment: the value "
+    "is null and the text is gone; quote \"#…\" if it was meant as the value "
+    "(a comment puts a space after '#')")
+_COMMENT_ONLY_TYPED_MSG = (
+    "value looks like '#'-glued text, but YAML reads a comment: the field is "
+    "silently empty and the text is gone; write the value you meant — a "
+    "'#…' text can never satisfy this field's declared type (a comment puts "
+    "a space after '#')")
 
 
 def _block_value(raw):
-    """Best-effort (value, start_col) for a block-context line: the part after
-    'key: ' or '- ', or the whole line for plain-scalar continuations."""
+    """Best-effort (value, start_col, key) for a block-context line: the part
+    after 'key: ' or '- ', or the whole line for plain-scalar continuations.
+    key is None on keyless lines (continuations, list items)."""
     indent = len(raw) - len(raw.lstrip())
     body, col = raw[indent:], indent
     while body.startswith("- "):
         body, col = body[2:], col + 2
-    m = re.match(r"[^\s:#][^:]*:(?:\s+|$)", body)
+    m = re.match(r"([^\s:#][^:]*):(?:\s+|$)", body)
     if m:
-        return body[m.end():], col + m.end()
-    return body, col
+        return body[m.end():], col + m.end(), m.group(1).strip()
+    return body, col, None
+
+
+def _spec_comment_kind(spec):
+    """Comment decidability of one field spec. 'safe': a ' #' tail can never
+    be content of this type, and the type/enum/ref check downstream is the
+    honest red for any real truncation. ('pattern', regex): a string field
+    with a declared shape — decidable per instance against the shape.
+    'string': honestly ambiguous."""
+    if not isinstance(spec, dict):
+        return "string"
+    ftype = spec.get("type")
+    if ftype == "list":
+        return _spec_comment_kind(spec.get("items"))
+    if ftype == "enum":
+        values = spec.get("values")
+        if isinstance(values, list) and values \
+                and not any("#" in str(v) for v in values):
+            return "safe"
+        return "string"
+    if ftype in ("integer", "number", "boolean", "date", "datetime", "ref"):
+        return "safe"
+    if ftype in ("string", "text") and isinstance(spec.get("pattern"), str):
+        try:
+            return ("pattern", re.compile(spec["pattern"]))
+        except re.error:
+            return "string"     # meta-validation reports the bad regex
+    return "string"
+
+
+def schema_field_kinds(schema):
+    """key_kinds map for a record's frontmatter under this schema, keyed
+    (None, name): schema fields live at the top level only, so a nested key
+    sharing a field's name must not inherit its silence. The reserved fields
+    are engine-checked (id pattern, entity match), so their comment tails are
+    decidable too."""
+    kinds = {(None, "id"): "safe", (None, "entity"): "safe"}
+    fields = schema.get("fields")
+    if isinstance(fields, dict):
+        for fname, spec in fields.items():
+            kinds[(None, str(fname))] = _spec_comment_kind(spec)
+    return kinds
 
 
 def _scan_flow(raw, start, lineno, findings, depth=0):
@@ -199,13 +268,30 @@ def _scan_flow(raw, start, lineno, findings, depth=0):
     return depth
 
 
-def scan_raw_yaml(text, first_line=1):
+def scan_raw_yaml(text, first_line=1, key_kinds=None):
     """Scan raw YAML text for constructs the parse would absorb silently.
     Returns [(line_number, message), ...]; first_line offsets the numbering
-    (record frontmatter starts after the opening '---')."""
+    (record frontmatter starts after the opening '---').
+
+    key_kinds maps keys to comment decidability (DEC-023): 'safe' means a
+    ' #' tail can never be that field's content and a downstream check reds
+    on real truncation, so the trailing-comment rule stays silent; ('pattern',
+    regex) means the field declared its values' shape and each line is
+    decided against it; 'string' — and any unknown key, and no map at all —
+    means the tail is honestly ambiguous and the rule speaks. Map keys are
+    either a plain name (matched at any depth: the engine's own schema-file
+    contract) or a (parent, name) tuple (matched only under that parent —
+    None for top level), so a user's nested key can never inherit a
+    contract key's silence by sharing its name. Lines without a key of their
+    own (continuations, list items) take the kind of the key that governs
+    them. A '#'-glued value ('key: #text') flags on every kind — it parses
+    to null, so no downstream check ever sees it."""
     findings = []
     flow_depth = 0
     block_indent = None
+    kind = "string"     # decidability of the key governing the current lines
+    cur_key = None      # that key's name, for the finding's [field] label
+    parents = []        # (indent, key) stack of open mapping/list parents
     for offset, raw in enumerate(text.splitlines()):
         lineno = first_line + offset
         if block_indent is not None:
@@ -218,10 +304,33 @@ def scan_raw_yaml(text, first_line=1):
         if flow_depth > 0:
             flow_depth = _scan_flow(raw, 0, lineno, findings, flow_depth)
             continue
-        value, vcol = _block_value(raw)
+        indent = len(raw) - len(raw.lstrip())
+        value, vcol, key = _block_value(raw)
+        if key is not None:
+            while parents and parents[-1][0] >= indent:
+                parents.pop()
+            parent = parents[-1][1] if parents else None
+            kind = (key_kinds.get((parent, key)) or key_kinds.get(key)
+                    or "string") if key_kinds else "string"
+            cur_key = key
+        label = f"[{cur_key}] " if cur_key else ""
         v = value.strip()
-        if not v or v.startswith("#"):
-            continue                    # empty value, or comment alone
+        if not v:
+            if key is not None:
+                parents.append((indent, key))
+            continue                    # empty value: a mapping or list follows
+        if v.startswith("#"):
+            # 'key: # note' (space after '#', or a '#'-run like '## …') is the
+            # comment-after-empty-value idiom — the engine's own stubs emit
+            # it, DEC-020 verified it, it stays silent. 'key: #glued' parses
+            # to null on EVERY kind, so no downstream check ever sees what
+            # vanished: it always speaks, with the remedy that exists for the
+            # field — quotes where the field holds text, the real value where
+            # the type could never contain '#…'.
+            if len(v) > 1 and v[1] not in " \t#":
+                findings.append((lineno, label + (_COMMENT_ONLY_TYPED_MSG
+                                 if kind == "safe" else _COMMENT_ONLY_VALUE_MSG)))
+            continue
         if _BLOCK_SCALAR_RE.match(v):
             block_indent = len(raw) - len(raw.lstrip())
             continue
@@ -230,8 +339,17 @@ def scan_raw_yaml(text, first_line=1):
         if v[0] in "{[":
             flow_depth = _scan_flow(raw, vcol + value.index(v[0]), lineno, findings)
             continue
-        if re.search(r"\s#", v):
-            findings.append((lineno, _COMMENT_AMBIGUITY_MSG))
+        if kind == "string":
+            if re.search(r"\s#", v):
+                findings.append((lineno, label + _COMMENT_AMBIGUITY_MSG))
+        elif isinstance(kind, tuple) and re.search(r"\s#", v):
+            # Declared shape decides the tail: head matches and the whole
+            # does not → provably a comment, silence. Whole matches → the
+            # value legitimately contains ' #' and YAML is about to truncate
+            # it → speak. Neither → the truncated value fails the pattern
+            # check downstream, which is the better red.
+            if kind[1].fullmatch(v):
+                findings.append((lineno, label + _COMMENT_AMBIGUITY_MSG))
     return findings
 
 
@@ -301,7 +419,7 @@ class Project:
         except (UnicodeDecodeError, OSError) as e:
             self.issues.append(Issue("error", cfg_path, f"cannot read config as UTF-8 text: {e}"))
             return {}
-        findings = scan_raw_yaml(text)
+        findings = scan_raw_yaml(text, key_kinds=CONFIG_KEY_KINDS)
         if findings:
             for ln, msg in findings:
                 self.error(cfg_path, f"line {ln}: {msg}")
@@ -311,6 +429,25 @@ class Project:
             if not isinstance(data, dict):
                 self.error(cfg_path, "config must be a YAML mapping")
                 return {}
+            # The scan marks policy.on_unresolvable comment-safe because this
+            # check is the honest red behind it: a truncated or misspelled
+            # mode must never silently mean 'block'.
+            policy = data.get("policy")
+            if policy is not None and not isinstance(policy, dict):
+                self.error(cfg_path, f"config key 'policy' must be a mapping, got {policy!r}")
+            elif isinstance(policy, dict):
+                # policy is the engine's own namespace: an unknown key here is
+                # a typo'd contract, and a typo'd contract silently means
+                # 'block' — so the keys are validated, not just the value.
+                for pkey in policy:
+                    if pkey != "on_unresolvable":
+                        self.error(cfg_path, f"unknown policy key '{pkey}' "
+                                             "(valid: on_unresolvable)")
+                mode = policy.get("on_unresolvable")
+                if mode is not None and mode not in VALID_POLICY_MODES:
+                    self.error(cfg_path,
+                               f"policy.on_unresolvable must be one of "
+                               f"{', '.join(sorted(VALID_POLICY_MODES))}, got {mode!r}")
             return data
         except yaml.YAMLError as e:
             self.error(cfg_path, f"config is not valid YAML: {e}")
@@ -339,7 +476,7 @@ class Project:
             text = self._read_text(path)
             if text is None:
                 continue
-            findings = scan_raw_yaml(text)
+            findings = scan_raw_yaml(text, key_kinds=SCHEMA_KEY_KINDS)
             if findings:
                 for ln, msg in findings:
                     self.error(path, f"line {ln}: {msg}")
@@ -444,6 +581,16 @@ class Project:
         if not ok:
             return
 
+        strict_val = data.get("strict")
+        if strict_val is not None and not isinstance(strict_val, bool):
+            self.error(path, f"'strict' must be a boolean, got {strict_val!r} "
+                             "— any other value would be silently dead configuration")
+            data["strict"] = True
+        elif strict_val is None:
+            # Covers both an absent key and 'strict:' left empty (e.g. with
+            # only a comment): the documented default, never a falsy None.
+            data["strict"] = True
+
         data["_path"] = path
         data["_width"] = width
         data["_filename"] = filename_mode
@@ -476,6 +623,10 @@ class Project:
                 self.error(path, f"key '{key}' does not apply to type '{ftype}' "
                                  f"— it would be silently dead configuration", label)
                 ok = False
+        if spec.get("required") is not None and not isinstance(spec["required"], bool):
+            self.error(path, f"'required' must be a boolean, got {spec['required']!r} "
+                             "— any other value would be silently dead configuration", label)
+            ok = False
         if ftype in ("integer", "number"):
             for bound in ("min", "max"):
                 if bound in spec and (isinstance(spec[bound], bool)
@@ -645,7 +796,12 @@ class Project:
             return
         # Pre-parse scan first: its message replaces the downstream symptom,
         # so the author reads about the comma they typed, not the key they didn't.
-        findings = scan_raw_yaml(fm, first_line=2)
+        # The schema's field types tell the scan where a comment tail is
+        # provably a comment (DEC-023); no schema means no knowledge, and the
+        # scan stays conservatively talkative.
+        schema = self.schemas.get(expected_entity)
+        kinds = schema_field_kinds(schema) if schema else None
+        findings = scan_raw_yaml(fm, first_line=2, key_kinds=kinds)
         if findings:
             for ln, msg in findings:
                 self.error(path, f"line {ln}: {msg}")
