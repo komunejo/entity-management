@@ -33,3 +33,5 @@ build/
 *.pem
 *.key
 credentials.json
+
+CLAUDE.local.md
